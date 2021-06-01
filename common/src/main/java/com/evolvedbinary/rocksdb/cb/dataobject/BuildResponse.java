@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 public class BuildResponse extends AbstractIdentifiableDataObject {
@@ -16,31 +18,34 @@ public class BuildResponse extends AbstractIdentifiableDataObject {
     private BuildState buildState;
     private BuildRequest buildRequest;
     @Nullable private BuildStats buildStats;
+    @Nullable private List<String> buildMessages;
 
     public BuildResponse() {
        super();
     }
 
     public BuildResponse(final BuildState buildState, final BuildRequest buildRequest) {
-        this(buildState, buildRequest, null);
+        this(buildState, buildRequest, null, null);
     }
 
-    public BuildResponse(final BuildState buildState, final BuildRequest buildRequest, @Nullable final BuildStats buildStats) {
+    public BuildResponse(final BuildState buildState, final BuildRequest buildRequest, @Nullable final BuildStats buildStats, @Nullable final List<String> buildMessages) {
         super();
         this.buildState = buildState;
         this.buildRequest = buildRequest;
         this.buildStats = buildStats;
+        this.buildMessages = buildMessages;
     }
 
     public BuildResponse(final UUID id, final ZonedDateTime timeStamp, final BuildState buildState, final BuildRequest buildRequest) {
-        this(id, timeStamp, buildState, buildRequest, null);
+        this(id, timeStamp, buildState, buildRequest, null, null);
     }
 
-    public BuildResponse(final UUID id, final ZonedDateTime timeStamp, final BuildState buildState, final BuildRequest buildRequest, @Nullable final BuildStats buildStats) {
+    public BuildResponse(final UUID id, final ZonedDateTime timeStamp, final BuildState buildState, final BuildRequest buildRequest, @Nullable final BuildStats buildStats, @Nullable final List<String> buildMessages) {
         super(id, timeStamp);
         this.buildState = buildState;
         this.buildRequest = buildRequest;
         this.buildStats = buildStats;
+        this.buildMessages = buildMessages;
     }
 
     public BuildState getBuildState() {
@@ -71,6 +76,12 @@ public class BuildResponse extends AbstractIdentifiableDataObject {
                 buildStats.serializeFields(generator);
                 generator.writeEndObject();
             }
+            if (buildMessages != null && !buildMessages.isEmpty()) {
+                final String[] elements = buildMessages.toArray(new String[0]);
+
+                generator.writeFieldName("buildMessages");
+                generator.writeArray(elements, 0, elements.length);
+            }
 
             generator.writeEndObject();
         }
@@ -93,6 +104,7 @@ public class BuildResponse extends AbstractIdentifiableDataObject {
             BuildState buildState1 = null;
             BuildRequest buildRequest1 = null;
             BuildStats buildStats1 = null;
+            List<String> buildMessages1 = null;
 
             while (true) {
                 token = parser.nextToken();
@@ -138,6 +150,18 @@ public class BuildResponse extends AbstractIdentifiableDataObject {
                         } else if (fieldName.equals("buildStats")) {
                             buildStats1 = new BuildStats().deserialize(parser, token);
                         }
+
+                    } else if (token == JsonToken.START_ARRAY) {
+                        if (fieldName.equals("buildMessages")) {
+                            buildMessages1 = new ArrayList<>();
+                            while ((token = parser.nextToken()) != JsonToken.END_ARRAY) {
+                                if (token == JsonToken.VALUE_STRING) {
+                                    buildMessages1.add(parser.getValueAsString());
+                                }
+                            }
+
+                        }
+
                     } else {
                         throw new IOException("Expected field string value or start object, but found: " + token);
                     }
@@ -162,6 +186,7 @@ public class BuildResponse extends AbstractIdentifiableDataObject {
             this.buildState = buildState1;
             this.buildRequest = buildRequest1;
             this.buildStats = buildStats1;
+            this.buildMessages = (buildMessages1 != null && !buildMessages1.isEmpty()) ? buildMessages1 : null;
         }
 
         return this;
@@ -178,7 +203,8 @@ public class BuildResponse extends AbstractIdentifiableDataObject {
         if (timeStamp != null ? !timeStamp.equals(that.timeStamp) : that.timeStamp != null) return false;
         if (buildState != that.buildState) return false;
         if (buildRequest != null ? !buildRequest.equals(that.buildRequest) : that.buildRequest != null) return false;
-        return buildStats != null ? buildStats.equals(that.buildStats) : that.buildStats == null;
+        if (buildStats != null ? !buildStats.equals(that.buildStats) : that.buildStats != null) return false;
+        return buildMessages != null ? buildMessages.equals(that.buildMessages) : that.buildMessages == null;
     }
 
     @Override
@@ -188,6 +214,7 @@ public class BuildResponse extends AbstractIdentifiableDataObject {
         result = 31 * result + (buildState != null ? buildState.hashCode() : 0);
         result = 31 * result + (buildRequest != null ? buildRequest.hashCode() : 0);
         result = 31 * result + (buildStats != null ? buildStats.hashCode() : 0);
+        result = 31 * result + (buildMessages != null ? buildMessages.hashCode() : 0);
         return result;
     }
 }

@@ -4,5 +4,6 @@ public enum BuildState {
     REQUESTING,
     REQUESTED,
     BUILDING,
-    BUILT;
+    BUILT,
+    FAILED;
 }

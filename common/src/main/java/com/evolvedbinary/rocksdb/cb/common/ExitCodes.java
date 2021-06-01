@@ -6,4 +6,5 @@ public interface ExitCodes {
     int UNABLE_TO_CONNECT_TO_JMS_BROKER = 8;
 
     int NO_SUCH_KEYSTORE = 16;
+    int INVALID_PATH = 17;
 }

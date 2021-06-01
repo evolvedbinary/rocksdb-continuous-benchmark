@@ -305,9 +305,10 @@ public class Orchestrator {
                 // record the updated state from `REQUESTED` to `BUILDING`
                 updateBuildState(builds, buildResponse.getBuildRequest(), BuildState.REQUESTED, BuildState.BUILDING);
 
-            } else if (BuildState.BUILT == buildResponse.getBuildState()) {
+            } else if (BuildState.BUILT == buildResponse.getBuildState()
+                    || BuildState.FAILED == buildResponse.getBuildState()) {
 
-                // record the updated state from `BUILDING` to `BUILT`, i.e. DONE!
+                // record the updated state from `BUILDING` to `BUILT` or `FAILED`, i.e. DONE!
                 if (!removeBuildState(builds, buildResponse.getBuildRequest(), BuildState.BUILDING)) {
                     LOGGER.error("Unable to remove Build State for ref: {} id: {}", buildResponse.getBuildRequest().getRef(), buildResponse.getBuildRequest().getId());
                 }

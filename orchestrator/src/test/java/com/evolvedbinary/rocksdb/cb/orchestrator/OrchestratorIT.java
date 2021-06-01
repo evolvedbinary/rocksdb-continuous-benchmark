@@ -164,4 +164,76 @@ public class OrchestratorIT {
             instance.close();
         }
     }
+
+    @Test
+    public void fromHookToOutputNoRefFiltersAllBuildsFailed() throws IOException, JMSException {
+        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, OUTPUT_QUEUE_NAME, Collections.emptyList(), true);
+        final Orchestrator orchestrator = new Orchestrator(settings);
+
+        final Orchestrator.Instance instance = orchestrator.runAsync();
+        try {
+
+            // pre-flight - Check queues that we will consume are empty
+            Message message = buildRequestQueueConsumer.receive(IMMEDIATE_TIMEOUT);
+            assertNull(message);
+            message = outputQueueConsumer.receive(IMMEDIATE_TIMEOUT);
+            assertNull(message);
+
+            // send a WebHookPayloadSummary to the WebHookQueue
+            final WebHookPayloadSummary webHookPayloadSummary = new WebHookPayloadSummary("origin/refs/master", "abc", "def", "facebook/rocksdb", "pusher", "sender");
+            message = session.createTextMessage(webHookPayloadSummary.serialize());
+            producer.send(webHookQueue, message);
+
+            /*
+                Orchestrator should receive and process the WebHookPayloadSummary,
+                and then create and send a BuildRequest.
+            */
+
+            // expect a BuildRequest on the BuildRequestQueue
+            message = buildRequestQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+            assertNotNull(message);
+            assertTrue(message instanceof TextMessage);
+            final BuildRequest buildRequest = new BuildRequest().deserialize(((TextMessage)message).getText());
+            assertNotNull(buildRequest.getId());
+            assertNotNull(buildRequest.getTimeStamp());
+            assertEquals(webHookPayloadSummary.getRepository(), buildRequest.getRepository());
+            assertEquals(webHookPayloadSummary.getAfter(), buildRequest.getCommit());
+            assertEquals(webHookPayloadSummary.getSender(), buildRequest.getAuthor());
+
+            // Send a BuildResponse(BUILDING) to the BuildResponseQueue
+            final BuildResponse buildResponseBuilding = new BuildResponse(BuildState.BUILDING, buildRequest);
+            message = session.createTextMessage(buildResponseBuilding.serialize());
+            producer.send(buildResponseQueue, message);
+
+            /*
+                Orchestrator should received and process the BuildResponse(BUILDING),
+                and update its internal state for the build.
+            */
+
+            // Check output queue is empty
+            message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+            assertNull(message);
+
+            // Send a BuildResponse(FAILED) to the BuildResponseQueue
+            final BuildResponse buildResponseBuilt = new BuildResponse(BuildState.FAILED, buildRequest);
+            message = session.createTextMessage(buildResponseBuilt.serialize());
+            producer.send(buildResponseQueue, message);
+
+            /*
+                Orchestrator should received and process the BuildResponse(FAILED),
+                update its internal state for the build, and then send the output
+                to the OutputQueue
+            */
+
+            // expect a BuildResponse on the OutputQueue
+            message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+            assertNotNull(message);
+            assertTrue(message instanceof TextMessage);
+            final BuildResponse outputBuildResponse = new BuildResponse().deserialize(((TextMessage)message).getText());
+            assertEquals(buildResponseBuilt, outputBuildResponse);
+
+        } finally {
+            instance.close();
+        }
+    }
 }
