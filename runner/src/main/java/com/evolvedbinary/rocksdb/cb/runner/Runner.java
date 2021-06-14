@@ -2,6 +2,11 @@ package com.evolvedbinary.rocksdb.cb.runner;
 
 import com.evolvedbinary.rocksdb.cb.dataobject.BuildRequest;
 import com.evolvedbinary.rocksdb.cb.dataobject.BuildResponse;
+import com.evolvedbinary.rocksdb.cb.dataobject.BuildState;
+import com.evolvedbinary.rocksdb.cb.dataobject.DataObject;
+import com.evolvedbinary.rocksdb.cb.scm.GitHelper;
+import com.evolvedbinary.rocksdb.cb.scm.GitHelperException;
+import com.evolvedbinary.rocksdb.cb.scm.GitHelperJGitImpl;
 import org.apache.activemq.artemis.api.core.TransportConfiguration;
 import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
 import org.apache.activemq.artemis.api.jms.JMSFactoryType;
@@ -9,17 +14,30 @@ import org.apache.activemq.artemis.core.remoting.impl.netty.NettyConnectorFactor
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.jms.*;
+import javax.jms.Connection;
+import javax.jms.ConnectionFactory;
+import javax.jms.JMSException;
+import javax.jms.Message;
+import javax.jms.MessageConsumer;
+import javax.jms.MessageListener;
+import javax.jms.MessageProducer;
+import javax.jms.Queue;
+import javax.jms.Session;
+import javax.jms.TextMessage;
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.IllegalStateException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.evolvedbinary.rocksdb.cb.common.CloseUtil.closeAndLogIfException;
 
-public class Runner {
+class Runner {
 
     private enum State {
         IDLE,
@@ -30,6 +48,10 @@ public class Runner {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Runner.class);
     private static final AtomicReference<State> STATE = new AtomicReference<>(State.IDLE);
+    private static final String MAIN_GIT_BRANCH = "master";
+    private static final String REPO_DIR_NAME = "repo";
+    private static final String LOG_DIR_NAME = "log";
+    private static final List<String> DEFAULT_MAKE_TARGETS = Arrays.asList("db_bench");
 
     private final Settings settings;
 
@@ -60,7 +82,7 @@ public class Runner {
 
         try {
             this.connection = connectionFactory.createConnection();
-            this.connection.setClientID("runner-" + UUID.randomUUID().toString());
+            this.connection.setClientID("runner-" + UUID.randomUUID());
 
             this.session = connection.createSession(false, Session.CLIENT_ACKNOWLEDGE);
 
@@ -131,6 +153,8 @@ public class Runner {
                 return;
             }
 
+            // TODO if we are already building, should we start another build (i.e. ack/no-ack)... or isn't this already controlled in the orchestrator already?
+
             if (!acknowledgeMessage(message)) {
                 LOGGER.error("Unable to acknowledge message from Queue: {}. Content: '{}'. Skipping...", settings.buildRequestQueueName, content);
                 return;
@@ -138,20 +162,83 @@ public class Runner {
 
             // TODO(AR) handle the build request
 
-            // 1) do some sanity checks
+            // 1) do some sanity checks?
+            // TODO(AR)
 
             // 2) Send BUILDING
+            // TODO(AR)
+
+            final Path repoDir = settings.dataDir.resolve(REPO_DIR_NAME);
+            final Path projectRepoDir = repoDir.resolve(buildRequest.getRepository());
 
             // 3) Checkout repo with JGit or Git?
+            GitHelper gitHelper = null;
+            try {
+                if (!Files.exists(projectRepoDir)) {
+                    // clone the remote repo
+                    final String repoUri = "https://github.com/" + buildRequest.getRepository();
+                    gitHelper = GitHelperJGitImpl.clone(repoUri, projectRepoDir, MAIN_GIT_BRANCH);
+
+                } else {
+                    // fetch the latest from the remote repo
+                    gitHelper = GitHelperJGitImpl.open(projectRepoDir).fetch();
+                }
+
+                // discard any unstaged changes (perhaps accumulated in a previous run), i.e. `git clean -fdx`
+                gitHelper = gitHelper.cleanAll();
+
+                // checkout the branch
+                gitHelper = gitHelper.checkout(buildRequest.getCommit());
+
+            } catch (final GitHelperException e) {
+                LOGGER.error("Unable to open/update Git repo: {}. Error: {}",buildRequest.getRepository(), e.getMessage(), e);
+
+                // send build failure
+                final BuildResponse failedResponse = new BuildResponse(BuildState.FAILED, buildRequest, null, Arrays.asList(e.getMessage()));
+                try {
+                    sendBuildResponseOutput(failedResponse);
+                } catch (final IOException | JMSException ee) {
+                    LOGGER.error("Unable to send build failure message. Error: {}", e.getMessage(), ee);
+                }
+
+            } finally {
+                if (gitHelper != null) {
+                    gitHelper.close();
+                }
+            }
 
             // 4) build the repo
+            final Path logDir = settings.dataDir.resolve(LOG_DIR_NAME);
+            final Path projectLogDir = logDir.resolve(buildRequest.getRepository());
+
+            final Builder builder = new Builder();
+            final Builder.BuildResult buildResult;
+            try {
+                buildResult = builder.build(projectRepoDir, projectLogDir, DEFAULT_MAKE_TARGETS);
+            } catch (final IOException e) {
+                // TODO(AR) handle this
+            }
+
 
             // 5) run the benchmarks
 
             // 6) send the results via BUILT
 
-            // *) need a BuildState.ERROR - or multiple types of error? to be able to send as a BuildResponse, e.g. CLONE_ERROR, COMPILATION_ERROR, BENCHMARK_ERROR
+            // *) TODO(AR) need a BuildState.ERROR - or multiple types of error? to be able to send as a BuildResponse, e.g. CLONE_ERROR, COMPILATION_ERROR, BENCHMARK_ERROR
         }
+    }
+
+    private void sendBuildResponseOutput(final BuildResponse buildResponse) throws IOException, JMSException {
+        // send the message
+        sendMessage(buildResponse, buildResponseQueue);
+    }
+
+    private void sendMessage(final DataObject message, final Queue queue) throws IOException, JMSException {
+        // send the message
+        final String content = message.serialize();
+        final TextMessage textMessage = session.createTextMessage(content);
+        buildResponseQueueProducer.send(queue, textMessage);
+        LOGGER.info("Sent {} to Queue: {}", message.getClass().getName(), queue.getQueueName());
     }
 
     private static boolean acknowledgeMessage(final Message message) {
@@ -245,10 +332,14 @@ public class Runner {
     static class Settings {
         final String buildRequestQueueName;
         final String buildResponseQueueName;
+        final Path dataDir;
+        final boolean keepLogs;
 
-        public Settings(final String buildRequestQueueName, final String buildResponseQueueName) {
+        public Settings(final String buildRequestQueueName, final String buildResponseQueueName, final Path dataDir, final boolean keepLogs) {
             this.buildRequestQueueName = buildRequestQueueName;
             this.buildResponseQueueName = buildResponseQueueName;
+            this.dataDir = dataDir;
+            this.keepLogs = keepLogs;
         }
     }
 }
