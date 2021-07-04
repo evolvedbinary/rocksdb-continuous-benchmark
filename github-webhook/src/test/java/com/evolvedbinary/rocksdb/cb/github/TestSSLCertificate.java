@@ -18,18 +18,21 @@ public class TestSSLCertificate {
     }
 
     public static String getKeyStorePass() {
-        return "secret";
+        return "server-store-secret";
     }
 
     public static String getCertPass() {
-        return "secret";
+        // NOTE: for PKCS12 there is no certificate password, so the key-store pass can be reused
+        return getKeyStorePass();
     }
 
     public static Path getTrustStorePath() throws URISyntaxException {
+        // NOTE: we use the same store for the trust-store and key-store
         return getKeyStorePath();
     }
 
     public static String getTrustStorePass() {
-        return "secret";
+        // NOTE: we use the same store for the trust-store and key-store
+        return getKeyStorePass();
     }
 }

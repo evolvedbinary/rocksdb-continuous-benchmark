@@ -20,17 +20,14 @@
         <root.alias>ss-root</root.alias>
         <root.keystore.path>${project.build.directory}/ss-root.p12</root.keystore.path>
         <root.keystore.pass>root-store-secret</root.keystore.pass>
-        <root.key.pass>root-key-secret</root.key.pass>
         <root.certificate.path>${project.build.directory}/ss-root.pem</root.certificate.path>
         <ca.alias>ss-ca</ca.alias>
         <ca.keystore.path>${project.build.directory}/ss-ca.p12</ca.keystore.path>
         <ca.keystore.pass>ca-store-secret</ca.keystore.pass>
-        <ca.key.pass>ca-key-secret</ca.key.pass>
         <ca.certificate.path>${project.build.directory}/ss-ca.pem</ca.certificate.path>
         <server.alias>ss-server</server.alias>
         <server.keystore.path>${keytool.generated-resources.dir}/ss-keystore.p12</server.keystore.path>
-        <server.keystore.pass>secret</server.keystore.pass>
-        <server.key.pass>secret</server.key.pass>
+        <server.keystore.pass>server-store-secret</server.keystore.pass>
         <server.certificate.path>${project.build.directory}/ss-keystore.pem</server.certificate.path>
         <key.algorithm>RSA</key.algorithm>
         <key.size>2048</key.size>
@@ -157,7 +154,6 @@
                                     <storetype>${keystore.type}</storetype>
                                     <keystore>${root.keystore.path}</keystore>
                                     <storepass>${root.keystore.pass}</storepass>
-                                    <keypass>${root.key.pass}</keypass>
                                 </configuration>
                             </execution>
                             <execution>
@@ -178,7 +174,6 @@
                                     <storetype>${keystore.type}</storetype>
                                     <keystore>${ca.keystore.path}</keystore>
                                     <storepass>${ca.keystore.pass}</storepass>
-                                    <keypass>${ca.key.pass}</keypass>
                                 </configuration>
                             </execution>
                             <execution>
@@ -279,7 +274,6 @@
                                     <storetype>${keystore.type}</storetype>
                                     <keystore>${server.keystore.path}</keystore>
                                     <storepass>${server.keystore.pass}</storepass>
-                                    <keypass>${server.key.pass}</keypass>
                                 </configuration>
                             </execution>
                             <execution>
