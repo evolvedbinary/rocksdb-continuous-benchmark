@@ -17,7 +17,8 @@ public interface CloseUtil {
      */
     static void closeAndLogIfException(final SupplierE<AutoCloseable, Throwable> closer, final Consumer<Throwable> logger) {
         try {
-            closer.get();
+            final AutoCloseable closeable = closer.get();
+            closeable.close();
         } catch (final Throwable t) {
             logger.accept(t);
         }

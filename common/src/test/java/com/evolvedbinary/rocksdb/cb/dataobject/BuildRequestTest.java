@@ -9,8 +9,8 @@ import java.time.ZonedDateTime;
 import java.util.UUID;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 public class BuildRequestTest {
 
@@ -89,5 +89,92 @@ public class BuildRequestTest {
         assertThrows(IOException.class, () -> {
             new BuildRequest().deserialize("{\"id\":\"" + id.toString() + "\",\"other\":{}}");
         });
+    }
+
+    @Test
+    public void equalsTest() {
+        BuildRequest buildRequest = new BuildRequest();
+        assertTrue(buildRequest.equals(buildRequest));
+        assertFalse(buildRequest.equals(null));
+        assertFalse(buildRequest.equals("string"));
+
+        final UUID id = UUID.randomUUID();
+        final ZonedDateTime now = ZonedDateTime.now();
+        final String repository = "facebook/rocksdb";
+        final String ref = "remotes/origin/master";
+        final String commit = "abcdef1";
+        final String author = "user1";
+
+        buildRequest = new BuildRequest(id, now, repository, ref, commit, author);
+
+        assertFalse(buildRequest.equals(new BuildRequest(null, now, repository, ref, commit, author)));
+        assertFalse(buildRequest.equals(new BuildRequest(UUID.randomUUID(), now, repository, ref, commit, author)));
+        assertFalse(buildRequest.equals(new BuildRequest(id, null, repository, ref, commit, author)));
+        assertFalse(buildRequest.equals(new BuildRequest(id, ZonedDateTime.now(), repository, ref, commit, author)));
+        assertFalse(buildRequest.equals(new BuildRequest(id, now, null, ref, commit, author)));
+        assertFalse(buildRequest.equals(new BuildRequest(id, now, "org/repo", ref, commit, author)));
+        assertFalse(buildRequest.equals(new BuildRequest(id, now, repository, null, commit, author)));
+        assertFalse(buildRequest.equals(new BuildRequest(id, now, repository, "remotes/origin/other", commit, author)));
+        assertFalse(buildRequest.equals(new BuildRequest(id, now, repository, "remotes/origin/other", null, author)));
+        assertFalse(buildRequest.equals(new BuildRequest(id, now, repository, "remotes/origin/other", "1defcba", author)));
+        assertFalse(buildRequest.equals(new BuildRequest(id, now, repository, "remotes/origin/other", commit, null)));
+        assertFalse(buildRequest.equals(new BuildRequest(id, now, repository, "remotes/origin/other", commit, "other")));
+
+        assertFalse(new BuildRequest(null, now, repository, ref, commit, author).equals(buildRequest));
+        assertFalse(new BuildRequest(UUID.randomUUID(), now, repository, ref, commit, author).equals(buildRequest));
+        assertFalse(new BuildRequest(id, null, repository, ref, commit, author).equals(buildRequest));
+        assertFalse(new BuildRequest(id, ZonedDateTime.now(), repository, ref, commit, author).equals(buildRequest));
+        assertFalse(new BuildRequest(id, now, null, ref, commit, author).equals(buildRequest));
+        assertFalse(new BuildRequest(id, now, "org/repo", ref, commit, author).equals(buildRequest));
+        assertFalse(new BuildRequest(id, now, repository, null, commit, author).equals(buildRequest));
+        assertFalse(new BuildRequest(id, now, repository, "remotes/origin/other", commit, author).equals(buildRequest));
+        assertFalse(new BuildRequest(id, now, repository, "remotes/origin/other", null, author).equals(buildRequest));
+        assertFalse(new BuildRequest(id, now, repository, "remotes/origin/other", "1defcba", author).equals(buildRequest));
+        assertFalse(new BuildRequest(id, now, repository, "remotes/origin/other", commit, null).equals(buildRequest));
+        assertFalse(new BuildRequest(id, now, repository, "remotes/origin/other", commit, "other").equals(buildRequest));
+
+        assertTrue(buildRequest.equals(new BuildRequest(id, now, repository, ref, commit, author)));
+    }
+
+    @Test
+    public void hashCodeTest() {
+        final UUID id = UUID.randomUUID();
+        final ZonedDateTime now = ZonedDateTime.now();
+        final String repository = "facebook/rocksdb";
+        final String ref = "remotes/origin/master";
+        final String commit = "abcdef1";
+        final String author = "user1";
+
+        assertNotEquals(0, new BuildRequest(null, now, repository, ref, commit, author).hashCode());
+        assertNotEquals(0, new BuildRequest(UUID.randomUUID(), now, repository, ref, commit, author).hashCode());
+        assertNotEquals(0, new BuildRequest(id, null, repository, ref, commit, author).hashCode());
+        assertNotEquals(0, new BuildRequest(id, ZonedDateTime.now(), repository, ref, commit, author).hashCode());
+        assertNotEquals(0, new BuildRequest(id, now, null, ref, commit, author).hashCode());
+        assertNotEquals(0, new BuildRequest(id, now, "org/repo", ref, commit, author).hashCode());
+        assertNotEquals(0, new BuildRequest(id, now, repository, null, commit, author).hashCode());
+        assertNotEquals(0, new BuildRequest(id, now, repository, "123", commit, author).hashCode());
+        assertNotEquals(0, new BuildRequest(id, now, repository, ref, null, author).hashCode());
+        assertNotEquals(0, new BuildRequest(id, now, repository, ref, "1fedcba", author).hashCode());
+        assertNotEquals(0, new BuildRequest(id, now, repository, ref, commit, null).hashCode());
+        assertNotEquals(0, new BuildRequest(id, now, repository, ref, commit, "other").hashCode());
+    }
+
+    @Test
+    public void getters() {
+        final UUID id = UUID.randomUUID();
+        final ZonedDateTime now = ZonedDateTime.now();
+        final String repository = "facebook/rocksdb";
+        final String ref = "remotes/origin/master";
+        final String commit = "abcdef1";
+        final String author = "user1";
+
+        final BuildRequest buildRequest = new BuildRequest(id, now, repository, ref, commit, author);
+
+        assertEquals(id, buildRequest.getId());
+        assertEquals(now, buildRequest.getTimeStamp());
+        assertEquals(repository, buildRequest.getRepository());
+        assertEquals(ref, buildRequest.getRef());
+        assertEquals(commit, buildRequest.getCommit());
+        assertEquals(author, buildRequest.getAuthor());
     }
 }
