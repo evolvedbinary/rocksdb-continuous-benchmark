@@ -21,16 +21,16 @@ public class BuildRequest extends AbstractIdentifiableDataObject {
         super();
     }
 
-    public BuildRequest(final UUID id, final ZonedDateTime timeStamp, final String repository, final String ref, final String commit, final String author) {
-        super(id, timeStamp);
+    public BuildRequest(final String repository, final String ref, final String commit, final String author) {
+        super();
         this.repository = repository;
         this.ref = ref;
         this.commit = commit;
         this.author = author;
     }
 
-    public BuildRequest(final String repository, final String ref, final String commit, final String author) {
-        super();
+    public BuildRequest(final UUID id, final ZonedDateTime timeStamp, final String repository, final String ref, final String commit, final String author) {
+        super(id, timeStamp);
         this.repository = repository;
         this.ref = ref;
         this.commit = commit;

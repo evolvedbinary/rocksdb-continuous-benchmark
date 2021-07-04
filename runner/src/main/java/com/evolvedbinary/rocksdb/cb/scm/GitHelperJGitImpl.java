@@ -30,7 +30,7 @@ public class GitHelperJGitImpl implements GitHelper {
                 .setURI(uri)
                 .setDirectory(repoDir.toFile())
                 .setRemote(Constants.DEFAULT_REMOTE_NAME)
-                .setCloneAllBranches(true)
+                .setCloneAllBranches(false)  //TODO(AR) do we need this to be true?
                 .setBranch(checkoutBranch);
 
         final Git git;
