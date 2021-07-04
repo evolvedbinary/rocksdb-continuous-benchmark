@@ -10,20 +10,44 @@
     <version>1.0.0-SNAPSHOT</version>
 
     <name>RocksDB Continuous Benchmarks</name>
+    <description>Continuous Benchmarks Systems for RocksDB</description>
+
+    <inceptionYear>2021</inceptionYear>
+
+    <organization>
+        <name>Evolved Binary</name>
+        <url>https://www.evolvedbinary.com</url>
+    </organization>
+
+    <licenses>
+        <license>
+            <name>Apache License 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
+            <distribution>repo</distribution>
+        </license>
+        <license>
+            <name>GNU General Public License, version 2</name>
+            <url>http://www.gnu.org/licenses/gpl-2.0.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
 
     <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
+        <java.source.version>11</java.source.version>
+        <java.target.version>11</java.target.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <artemis.version>2.17.0</artemis.version>
         <junit.version>5.7.2</junit.version>
+
+        <contact.email>tech@evolvedbinary.com</contact.email>
     </properties>
 
     <modules>
+        <module>common</module>
         <module>github-webhook</module>
         <module>orchestrator</module>
-        <module>common</module>
-        <module>test-util</module>
         <module>runner</module>
+        <module>test-util</module>
     </modules>
 
     <dependencyManagement>
@@ -62,6 +86,12 @@
 
             <dependency>
                 <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
                 <artifactId>junit-jupiter</artifactId>
                 <version>${junit.version}</version>
                 <scope>test</scope>
@@ -80,5 +110,260 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>3.2.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>com.mycila</groupId>
+                    <artifactId>license-maven-plugin</artifactId>
+                    <version>4.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <version>3.2.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.8.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>com.code54.mojo</groupId>
+                    <artifactId>buildversion-plugin</artifactId>
+                    <version>1.0.3</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>3.2.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>0.8.7</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.0.0-M5</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <version>3.0.0-M5</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-site-plugin</artifactId>
+                    <version>3.9.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-project-info-reports-plugin</artifactId>
+                    <version>3.1.2</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <configuration>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <configuration>
+                    <licenseSets>
+                        <licenseSet>
+                            <multi>
+                                <preamble><![CDATA[This product is dual-licensed under both the GPLv2 and Apache 2.0 License.]]></preamble>
+                                <header>com/mycila/maven/plugin/license/templates/GPL-2.txt</header>
+                                <separator>======================================================================</separator>
+                                <header>com/mycila/maven/plugin/license/templates/APACHE-2.txt</header>
+                            </multi>
+                            <excludes>
+                                <exclude>.github/</exclude>
+                                <exclude>.gitignore</exclude>
+                                <exclude>README.md</exclude>
+                                <exclude>LICENSE</exclude>
+                            </excludes>
+                        </licenseSet>
+                    </licenseSets>
+                    <properties>
+                        <email>${contact.email}</email>
+                    </properties>
+                    <failIfMissing>false</failIfMissing>
+                    <strictCheck>true</strictCheck>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>check-headers</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>analyze</id>
+                        <goals>
+                            <goal>analyze-only</goal>
+                        </goals>
+                        <configuration>
+                            <failOnWarning>false</failOnWarning>
+                            <ignoredUnusedDeclaredDependencies>
+                                <!-- used at runtime for test scope -->
+                                <ignoredUnusedDeclaredDependency>org.junit.jupiter:junit-jupiter:jar:${junit.version}:test</ignoredUnusedDeclaredDependency>
+                            </ignoredUnusedDeclaredDependencies>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                    <source>${java.source.version}</source>
+                    <target>${java.target.version}</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.code54.mojo</groupId>
+                <artifactId>buildversion-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>set-properties</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        </manifest>
+                        <manifestEntries>
+                            <Build-Tag>${build-tag}</Build-Tag>
+                            <Git-Commit>${build-commit}</Git-Commit>
+                            <Git-Commit-Abbrev>${build-commit-abbrev}</Git-Commit-Abbrev>
+                            <Build-Version>${build-version}</Build-Version>
+                            <Build-Timestamp>${build-tstamp}</Build-Timestamp>
+                            <Source-Repository>${project.scm.connection}</Source-Repository>
+                            <Description>${project.description}</Description>
+                            <Implementation-URL>${project.url}</Implementation-URL>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <configuration>
+                    <propertyName>jacocoArgLine</propertyName>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>default-prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>@{jacocoArgLine} -Dfile.encoding=${project.build.sourceEncoding}</argLine>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <argLine>@{jacocoArgLine} -Dfile.encoding=${project.build.sourceEncoding}</argLine>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-site-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-project-info-reports-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+    <reporting>
+        <plugins>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <reportSets>
+                    <reportSet>
+                        <reports>
+                            <!-- select non-aggregate reports -->
+                            <report>report</report>
+                        </reports>
+                    </reportSet>
+                </reportSets>
+            </plugin>
+        </plugins>
+    </reporting>
+
+    <profiles>
+        <profile>
+            <id>upload-jacoco-to-coveralls</id>
+            <activation>
+                <!-- enabled in CI environment i.e. GitHub Actions -->
+                <property>
+                    <name>env.CI</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.eluder.coveralls</groupId>
+                        <artifactId>coveralls-maven-plugin</artifactId>
+                        <version>4.3.0</version>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
