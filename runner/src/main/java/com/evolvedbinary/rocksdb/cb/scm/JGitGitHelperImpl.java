@@ -11,11 +11,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GitHelperJGitImpl implements GitHelper {
+public class JGitGitHelperImpl implements GitHelper {
 
     private final Git git;
 
-    private GitHelperJGitImpl(final Git git) {
+    private JGitGitHelperImpl(final Git git) {
         this.git = git;
     }
 
@@ -40,7 +40,7 @@ public class GitHelperJGitImpl implements GitHelper {
             throw new GitHelperException("Unable to clone: " + uri + ". " + e.getMessage(), e);
         }
 
-        return new GitHelperJGitImpl(git);
+        return new JGitGitHelperImpl(git);
     }
 
     public static GitHelper open(final Path repoDir) throws GitHelperException {
@@ -50,7 +50,7 @@ public class GitHelperJGitImpl implements GitHelper {
         } catch (final IOException e) {
             throw new GitHelperException("Unable to open repo: " + repoDir.toAbsolutePath() + ". " + e.getMessage(), e);
         }
-        return new GitHelperJGitImpl(git);
+        return new JGitGitHelperImpl(git);
     }
 
     @Override

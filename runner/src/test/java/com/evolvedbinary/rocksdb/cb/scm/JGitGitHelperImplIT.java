@@ -12,7 +12,7 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class GitHelperJGitImplIT {
+public class JGitGitHelperImplIT {
 
     private static final String REPO_URI = "https://github.com/evolvedbinary/docker-rocksjava";
     private static final String BRANCH = "master";
@@ -23,7 +23,7 @@ public class GitHelperJGitImplIT {
     @Test
     public void cloneRepo(@TempDir final Path tempDir) throws GitHelperException, IOException {
         final Path repoDir = Files.createTempDirectory(tempDir, "cloneRepoTest");
-        try (final GitHelper gitHelper = GitHelperJGitImpl.clone(REPO_URI, repoDir, BRANCH)) {
+        try (final GitHelper gitHelper = JGitGitHelperImpl.clone(REPO_URI, repoDir, BRANCH)) {
             assertTrue(Files.exists(repoDir));
             try (final Stream<Path> stream = Files.list(repoDir)) {
                 assertTrue(stream.count() > 1);
@@ -37,7 +37,7 @@ public class GitHelperJGitImplIT {
     public void cloneRepoInvalidBranch(@TempDir final Path tempDir) throws IOException {
         final Path repoDir = Files.createTempDirectory(tempDir, "cloneRepoInvalidBranchTest");
         assertThrows(GitHelperException.class, () -> {
-            try (final GitHelper gitHelper = GitHelperJGitImpl.clone(REPO_URI, repoDir, INVALID_BRANCH)) {
+            try (final GitHelper gitHelper = JGitGitHelperImpl.clone(REPO_URI, repoDir, INVALID_BRANCH)) {
                 assertNotNull(gitHelper);
             }
         });
@@ -47,7 +47,7 @@ public class GitHelperJGitImplIT {
     public void cloneRepoNoSuchRepo(@TempDir final Path tempDir) throws IOException {
         final Path repoDir = Files.createTempDirectory(tempDir, "cloneRepoNoSuchRepoTest");
         assertThrows(GitHelperException.class, () -> {
-            try (final GitHelper gitHelper = GitHelperJGitImpl.clone(INVALID_REPO_URI, repoDir, BRANCH)) {
+            try (final GitHelper gitHelper = JGitGitHelperImpl.clone(INVALID_REPO_URI, repoDir, BRANCH)) {
                 assertNotNull(gitHelper);
             }
         });
@@ -58,7 +58,7 @@ public class GitHelperJGitImplIT {
         final Path repoDir = Files.createTempDirectory(tempDir, "openExistingRepoTest");
 
         // clone first
-        try (final GitHelper gitHelper = GitHelperJGitImpl.clone(REPO_URI, repoDir, BRANCH)) {
+        try (final GitHelper gitHelper = JGitGitHelperImpl.clone(REPO_URI, repoDir, BRANCH)) {
             assertTrue(Files.exists(repoDir));
             try (final Stream<Path> stream = Files.list(repoDir)) {
                 assertTrue(stream.count() > 1);
@@ -68,7 +68,7 @@ public class GitHelperJGitImplIT {
         }
 
         // then try and open the clone
-        try (final GitHelper gitHelper = GitHelperJGitImpl.open(repoDir)) {
+        try (final GitHelper gitHelper = JGitGitHelperImpl.open(repoDir)) {
             assertNotNull(gitHelper);
             assertNotNull(gitHelper.getHead());
             assertEquals(BRANCH, gitHelper.getBranch());
@@ -79,7 +79,7 @@ public class GitHelperJGitImplIT {
     public void openNonExistentRepo(@TempDir final Path tempDir) {
         final Path repoDir = tempDir.resolve("openNonExistentRepoTest");
         assertThrows(GitHelperException.class, () -> {
-            try (final GitHelper gitHelper = GitHelperJGitImpl.open(repoDir)) {
+            try (final GitHelper gitHelper = JGitGitHelperImpl.open(repoDir)) {
                 assertNotNull(gitHelper);
             }
         });
@@ -90,7 +90,7 @@ public class GitHelperJGitImplIT {
         final Path repoDir = Files.createTempDirectory(tempDir, "openAndFetchTest");
 
         // clone first
-        try (final GitHelper gitHelper = GitHelperJGitImpl.clone(REPO_URI, repoDir, BRANCH)) {
+        try (final GitHelper gitHelper = JGitGitHelperImpl.clone(REPO_URI, repoDir, BRANCH)) {
             assertTrue(Files.exists(repoDir));
             try (final Stream<Path> stream = Files.list(repoDir)) {
                 assertTrue(stream.count() > 1);
@@ -100,7 +100,7 @@ public class GitHelperJGitImplIT {
         }
 
         // then open
-        try (final GitHelper gitHelper = GitHelperJGitImpl.open(repoDir)) {
+        try (final GitHelper gitHelper = JGitGitHelperImpl.open(repoDir)) {
             assertNotNull(gitHelper);
             assertNotNull(gitHelper.getHead());
             assertEquals(BRANCH, gitHelper.getBranch());
@@ -118,7 +118,7 @@ public class GitHelperJGitImplIT {
         final Path repoDir = Files.createTempDirectory(tempDir, "cleanAllTest");
 
         // clone first
-        try (final GitHelper gitHelper = GitHelperJGitImpl.clone(REPO_URI, repoDir, BRANCH)) {
+        try (final GitHelper gitHelper = JGitGitHelperImpl.clone(REPO_URI, repoDir, BRANCH)) {
             assertTrue(Files.exists(repoDir));
             try (final Stream<Path> stream = Files.list(repoDir)) {
                 assertTrue(stream.count() > 1);
@@ -136,7 +136,7 @@ public class GitHelperJGitImplIT {
         final Path repoDir = Files.createTempDirectory(tempDir, "checkoutRevisionTest");
 
         // clone first
-        try (final GitHelper gitHelper = GitHelperJGitImpl.clone(REPO_URI, repoDir, BRANCH)) {
+        try (final GitHelper gitHelper = JGitGitHelperImpl.clone(REPO_URI, repoDir, BRANCH)) {
             assertTrue(Files.exists(repoDir));
             try (final Stream<Path> stream = Files.list(repoDir)) {
                 assertTrue(stream.count() > 1);

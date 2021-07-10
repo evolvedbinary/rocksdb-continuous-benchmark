@@ -1,5 +1,6 @@
 package com.evolvedbinary.rocksdb.cb.process;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -15,19 +16,21 @@ public class ProcessHelper {
 
     private static final DateTimeFormatter BASIC_ISO_DATE_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    public static ProcessInfo start(final Path workingDirectory, final Map<String, String> environmentVariables,
-            final String command, final List<String> arguments, final Path logDir) throws IOException {
+    public static ProcessInfo start(final Path workingDirectory, @Nullable final Map<String, String> environmentVariables,
+            final String command, final List<String> arguments, final Path logDir, final String logFilePrefix) throws IOException {
 
         final LocalDateTime localDateTime = LocalDateTime.now();
         final String dateTimeStamp = localDateTime.format(BASIC_ISO_DATE_TIME);
 
-        final Path stdOutputLogFile = logDir.resolve("stdout." + dateTimeStamp + ".log");
-        final Path stdErrorLogFile = logDir.resolve("stderr." + dateTimeStamp + ".log");
+        final Path stdOutputLogFile = logDir.resolve(logFilePrefix + ".stdout." + dateTimeStamp + ".log");
+        final Path stdErrorLogFile = logDir.resolve(logFilePrefix + ".stderr." + dateTimeStamp + ".log");
 
         final ProcessBuilder processBuilder = new ProcessBuilder()
                 .directory(workingDirectory.toFile());
 
-        environmentVariables.forEach((name, value) -> processBuilder.environment().put(name, value));
+        if (environmentVariables != null) {
+            environmentVariables.forEach((name, value) -> processBuilder.environment().put(name, value));
+        }
 
         final List<String> commandAndArgs = new ArrayList<>();
         commandAndArgs.add(command);
@@ -51,17 +54,5 @@ public class ProcessHelper {
         }
 
         return exitCode;
-    }
-
-    public static class ProcessInfo {
-        public final Path stdOutputLogFile;
-        public final Path stdErrorLogFile;
-        public final Process process;
-
-        public ProcessInfo(final Path stdOutputLogFile, final Path stdErrorLogFile, final Process process) {
-            this.stdOutputLogFile = stdOutputLogFile;
-            this.stdErrorLogFile = stdErrorLogFile;
-            this.process = process;
-        }
     }
 }

@@ -1,12 +1,12 @@
 package com.evolvedbinary.rocksdb.cb.runner;
 
-import com.evolvedbinary.rocksdb.cb.dataobject.BuildRequest;
-import com.evolvedbinary.rocksdb.cb.dataobject.BuildResponse;
-import com.evolvedbinary.rocksdb.cb.dataobject.BuildState;
-import com.evolvedbinary.rocksdb.cb.dataobject.DataObject;
+import com.evolvedbinary.rocksdb.cb.dataobject.*;
+import com.evolvedbinary.rocksdb.cb.runner.builder.BuildResult;
+import com.evolvedbinary.rocksdb.cb.runner.builder.Builder;
+import com.evolvedbinary.rocksdb.cb.runner.builder.JavaProcessBuilderImpl;
 import com.evolvedbinary.rocksdb.cb.scm.GitHelper;
 import com.evolvedbinary.rocksdb.cb.scm.GitHelperException;
-import com.evolvedbinary.rocksdb.cb.scm.GitHelperJGitImpl;
+import com.evolvedbinary.rocksdb.cb.scm.JGitGitHelperImpl;
 import org.apache.activemq.artemis.api.core.TransportConfiguration;
 import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
 import org.apache.activemq.artemis.api.jms.JMSFactoryType;
@@ -14,6 +14,7 @@ import org.apache.activemq.artemis.core.remoting.impl.netty.NettyConnectorFactor
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.JMSException;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.lang.IllegalStateException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -153,35 +155,38 @@ class Runner {
                 return;
             }
 
-            // TODO if we are already building, should we start another build (i.e. ack/no-ack)... or isn't this already controlled in the orchestrator already?
+            // TODO(AR) if we are already building, should we start another build (i.e. ack/no-ack)... or isn't this already controlled in the orchestrator already?
 
             if (!acknowledgeMessage(message)) {
                 LOGGER.error("Unable to acknowledge message from Queue: {}. Content: '{}'. Skipping...", settings.buildRequestQueueName, content);
                 return;
             }
 
-            // TODO(AR) handle the build request
-
             // 1) do some sanity checks?
             // TODO(AR)
 
-            // 2) Send BUILDING
-            // TODO(AR)
+            final BuildStats buildStats = new BuildStats();
+
+            // 2) Send UPDATING_SOURCE
+            if (!sendUpdatedBuildStatus(BuildState.UPDATING_SOURCE, buildRequest, buildStats)) {
+                return;  // nothing more can be done!
+            }
 
             final Path repoDir = settings.dataDir.resolve(REPO_DIR_NAME);
             final Path projectRepoDir = repoDir.resolve(buildRequest.getRepository());
 
-            // 3) Checkout repo with JGit or Git?
+            // 3) Checkout/Fetch repo with JGit to update the source
+            final long updateSourceStartTime = System.currentTimeMillis();
             GitHelper gitHelper = null;
             try {
                 if (!Files.exists(projectRepoDir)) {
                     // clone the remote repo
                     final String repoUri = "https://github.com/" + buildRequest.getRepository();
-                    gitHelper = GitHelperJGitImpl.clone(repoUri, projectRepoDir, MAIN_GIT_BRANCH);
+                    gitHelper = JGitGitHelperImpl.clone(repoUri, projectRepoDir, MAIN_GIT_BRANCH);
 
                 } else {
                     // fetch the latest from the remote repo
-                    gitHelper = GitHelperJGitImpl.open(projectRepoDir).fetch();
+                    gitHelper = JGitGitHelperImpl.open(projectRepoDir).fetch();
                 }
 
                 // discard any unstaged changes (perhaps accumulated in a previous run), i.e. `git clean -fdx`
@@ -193,13 +198,11 @@ class Runner {
             } catch (final GitHelperException e) {
                 LOGGER.error("Unable to open/update Git repo: {}. Error: {}",buildRequest.getRepository(), e.getMessage(), e);
 
-                // send build failure
-                final BuildResponse failedResponse = new BuildResponse(BuildState.FAILED, buildRequest, null, Arrays.asList(e.getMessage()));
-                try {
-                    sendBuildResponseOutput(failedResponse);
-                } catch (final IOException | JMSException ee) {
-                    LOGGER.error("Unable to send build failure message. Error: {}", e.getMessage(), ee);
-                }
+                // send UPDATING_SOURCE_FAILED
+                buildStats.setUpdateSourceTime(System.currentTimeMillis() - updateSourceStartTime);
+                sendFailureBuildStatus(BuildState.UPDATING_SOURCE_FAILED, buildRequest, buildStats, e);
+
+                return;  // nothing more can be done!
 
             } finally {
                 if (gitHelper != null) {
@@ -207,24 +210,115 @@ class Runner {
                 }
             }
 
+            // record the total time taken for updating the source code
+            buildStats.setUpdateSourceTime(System.currentTimeMillis() - updateSourceStartTime);
+
+            // 4) Send UPDATING_SOURCE_COMPLETE
+            if (!sendUpdatedBuildStatus(BuildState.UPDATING_SOURCE_COMPLETE, buildRequest, buildStats)) {
+                return;  // nothing more can be done!
+            }
+
+            // 5) Send BUILDING
+            if (!sendUpdatedBuildStatus(BuildState.BUILDING, buildRequest, buildStats)) {
+                return;  // nothing more can be done!
+            }
+
             // 4) build the repo
+            final long compileSourceStartTime = System.currentTimeMillis();
             final Path logDir = settings.dataDir.resolve(LOG_DIR_NAME);
             final Path projectLogDir = logDir.resolve(buildRequest.getRepository());
 
-            final Builder builder = new Builder();
-            final Builder.BuildResult buildResult;
+            final Builder builder = new JavaProcessBuilderImpl();
+            final BuildResult buildResult;
             try {
-                buildResult = builder.build(projectRepoDir, projectLogDir, DEFAULT_MAKE_TARGETS);
+                buildResult = builder.build(buildRequest.getId(), projectRepoDir, projectLogDir, DEFAULT_MAKE_TARGETS);
             } catch (final IOException e) {
-                // TODO(AR) handle this
+                LOGGER.error("Unable to build source code repo: {}. Error: {}", projectRepoDir, e.getMessage(), e);
+
+                // send BUILDING_FAILED
+                buildStats.setCompilationTime(System.currentTimeMillis() - compileSourceStartTime);
+                sendFailureBuildStatus(BuildState.BUILDING_FAILED, buildRequest, buildStats, e);
+
+                return;  // nothing more can be done!
             }
 
+            // record the total time taken for building the source code
+            buildStats.setCompilationTime(System.currentTimeMillis() - compileSourceStartTime);
 
-            // 5) run the benchmarks
 
-            // 6) send the results via BUILT
+            // 6) did the builder succeed in building the source code?
+            if (!buildResult.ok) {
+                // build FAILED
 
-            // *) TODO(AR) need a BuildState.ERROR - or multiple types of error? to be able to send as a BuildResponse, e.g. CLONE_ERROR, COMPILATION_ERROR, BENCHMARK_ERROR
+                // get build logs
+                List<BuildDetail> buildDetails = null;
+                final byte[] stdOutLog = readFile(buildResult.stdOutputLogFile);
+                if (stdOutLog != null) {
+                    buildDetails = new ArrayList<>();
+                    buildDetails.add(BuildDetail.forStdOut(stdOutLog));
+                }
+                final byte[] stdErrLog = readFile(buildResult.stdErrorLogFile);
+                if (stdErrLog != null) {
+                    if (buildDetails == null) {
+                        buildDetails = new ArrayList<>();
+                    }
+                    buildDetails.add(BuildDetail.forStdErr(stdErrLog));
+                }
+
+                // 6.1) Send BUILDING FAILED
+                sendFailureBuildStatus(BuildState.BUILDING_FAILED, buildRequest, buildStats, buildDetails);
+
+            } else {
+                // build OK
+
+                // 6.2) Send BUILDING_COMPLETE
+                if (!sendUpdatedBuildStatus(BuildState.BUILDING_COMPLETE, buildRequest, buildStats)) {
+                    return;  // nothing more can be done!
+                }
+            }
+
+            // 7) Send BENCHMARKING
+            if (!sendUpdatedBuildStatus(BuildState.BENCHMARKING, buildRequest, buildStats)) {
+                return;  // nothing more can be done!
+            }
+
+            // 8) run the benchmarks
+
+            // 8) Send BENCHMARKING_COMPLETE
+
+        }
+    }
+
+    private boolean sendUpdatedBuildStatus(final BuildState newBuildState, final BuildRequest buildRequest, final BuildStats buildStats) {
+        if (!BuildState.isStateUpdateSuccessState(newBuildState) && !BuildState.isStateFinalSuccessState(newBuildState)) {
+            throw new IllegalStateException("Cannot send update build status message for non-update state: " + newBuildState);
+        }
+
+        final BuildResponse benchmarkingBuildResponse = new BuildResponse(newBuildState, buildRequest, buildStats, null);
+        try {
+            sendBuildResponseOutput(benchmarkingBuildResponse);
+            return true;
+        } catch (final IOException | JMSException e) {
+            LOGGER.error("Unable to send updated build state {}. Error: {}",  benchmarkingBuildResponse.getBuildState(), e.getMessage(), e);
+            return false;
+        }
+    }
+
+    private void sendFailureBuildStatus(final BuildState failureBuildState, final BuildRequest buildRequest, final BuildStats buildStats, @Nullable final Exception e) {
+        final List<BuildDetail> buildDetails = e == null ? null : Arrays.asList(BuildDetail.forException(e));
+        sendFailureBuildStatus(failureBuildState, buildRequest, buildStats, buildDetails);
+    }
+
+    private void sendFailureBuildStatus(final BuildState failureBuildState, final BuildRequest buildRequest, final BuildStats buildStats, @Nullable final List<BuildDetail> buildDetails) {
+        if (!BuildState.isStateFailureState(failureBuildState)) {
+            throw new IllegalStateException("Cannot send failure build status message for non-failure state: " + failureBuildState);
+        }
+
+        final BuildResponse failedResponse = new BuildResponse(failureBuildState, buildRequest, buildStats, buildDetails);
+        try {
+            sendBuildResponseOutput(failedResponse);
+        } catch (final IOException | JMSException ee) {
+            LOGGER.error("Unable to send build failure message for state {}. Error: {}", failedResponse.getBuildState(), ee.getMessage(), ee);
         }
     }
 
@@ -248,6 +342,22 @@ class Runner {
         } catch (final JMSException e) {
             LOGGER.error("Unable to acknowledge message: {}", e.getMessage(), e);
             return false;
+        }
+    }
+
+    private static byte[] readFile(@Nullable final Path path) {
+        if (path == null) {
+            return null;
+        }
+
+        try {
+            if (Files.exists(path) && Files.size(path) > 0) {
+                return Files.readAllBytes(path);
+            }
+            return null;
+        } catch (final IOException e) {
+            LOGGER.error("Unable to read file: {}. {}", path.toAbsolutePath().toString(), e.getMessage(), e);
+            return null;
         }
     }
 
