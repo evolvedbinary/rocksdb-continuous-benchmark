@@ -66,92 +66,76 @@ public class WebHookPayloadSummary extends AbstractIdentifiableDataObject {
     }
 
     @Override
-    public void serialize(final OutputStream os) throws IOException {
-        try (final JsonGenerator generator = JSON_FACTORY.createGenerator(os)) {
-            generator.writeStartObject();
+    public void serializeFields(final JsonGenerator generator) throws IOException {
+        generator.writeStringField("id", id.toString());
+        generator.writeStringField("timeStamp", timeStamp.toString());
 
-            generator.writeStringField("id", id.toString());
-            generator.writeStringField("timeStamp", timeStamp.toString());
-
-            generator.writeStringField("ref", ref);
-            generator.writeStringField("before", before);
-            generator.writeStringField("after", after);
-            generator.writeStringField("repository", repository);
-            generator.writeStringField("pusher", pusher);
-            generator.writeStringField("sender", sender);
-
-            generator.writeEndObject();
-        }
+        generator.writeStringField("ref", ref);
+        generator.writeStringField("before", before);
+        generator.writeStringField("after", after);
+        generator.writeStringField("repository", repository);
+        generator.writeStringField("pusher", pusher);
+        generator.writeStringField("sender", sender);
     }
 
     @Override
-    public WebHookPayloadSummary deserialize(final InputStream is) throws IOException {
-        try (final JsonParser parser = JSON_FACTORY.createParser(is)) {
-            // get the first token
-            JsonToken token = parser.nextToken();
+    public WebHookPayloadSummary deserializeFields(final JsonParser parser, JsonToken token) throws IOException {
+        // new data fields
+        String id1 = null;
+        String timeStamp1 = null;
+        String ref1 = null;
+        String before1 = null;
+        String after1 = null;
+        String repository1 = null;
+        String pusher1 = null;
+        String sender1 = null;
 
-            // Sanity check: verify that we got "Json Object":
-            if (token != JsonToken.START_OBJECT) {
-                throw new IOException("Expected data to start with an Object");
+        while (true) {
+            token = parser.nextToken();
+            if (token == null || token == JsonToken.END_OBJECT) {
+                break;  // EOL
+            }
+            if (token == JsonToken.START_OBJECT) {
+                throw new IOException("Unexpected Start object: " + token);
             }
 
-            // new data fields
-            String id1 = null;
-            String timeStamp1 = null;
-            String ref1 = null;
-            String before1 = null;
-            String after1 = null;
-            String repository1 = null;
-            String pusher1 = null;
-            String sender1 = null;
+            if (token == JsonToken.FIELD_NAME) {
+                final String fieldName = parser.getCurrentName();
 
-            while (true) {
+                // move to field value
                 token = parser.nextToken();
-                if (token == null || token == JsonToken.END_OBJECT) {
-                    break;  // EOL
-                }
-                if (token == JsonToken.START_OBJECT) {
-                    throw new IOException("Unexpected Start object: " + token);
+                if (token != JsonToken.VALUE_STRING) {
+                    throw new IOException("Expected field string value, but found: " + token);
                 }
 
-                if (token == JsonToken.FIELD_NAME) {
-                    final String fieldName = parser.getCurrentName();
-
-                    // move to field value
-                    token = parser.nextToken();
-                    if (token != JsonToken.VALUE_STRING) {
-                        throw new IOException("Expected field string value, but found: " + token);
-                    }
-
-                    if (fieldName.equals("id")) {
-                        id1 = parser.getValueAsString();
-                    } else if (fieldName.equals("timeStamp")) {
-                        timeStamp1 = parser.getValueAsString();
-                    } else if (fieldName.equals("ref")) {
-                        ref1 = parser.getValueAsString();
-                    } else if (fieldName.equals("before")) {
-                        before1 = parser.getValueAsString();
-                    } else if (fieldName.equals("after")) {
-                        after1 = parser.getValueAsString();
-                    } else if (fieldName.equals("repository")) {
-                        repository1 = parser.getValueAsString();
-                   } else if (fieldName.equals("pusher")) {
-                        pusher1 = parser.getValueAsString();
-                   } else if (fieldName.equals("sender")) {
-                        sender1 = parser.getValueAsString();
-                   }
-                }
+                if (fieldName.equals("id")) {
+                    id1 = parser.getValueAsString();
+                } else if (fieldName.equals("timeStamp")) {
+                    timeStamp1 = parser.getValueAsString();
+                } else if (fieldName.equals("ref")) {
+                    ref1 = parser.getValueAsString();
+                } else if (fieldName.equals("before")) {
+                    before1 = parser.getValueAsString();
+                } else if (fieldName.equals("after")) {
+                    after1 = parser.getValueAsString();
+                } else if (fieldName.equals("repository")) {
+                    repository1 = parser.getValueAsString();
+               } else if (fieldName.equals("pusher")) {
+                    pusher1 = parser.getValueAsString();
+               } else if (fieldName.equals("sender")) {
+                    sender1 = parser.getValueAsString();
+               }
             }
-
-            this.id = UUID.fromString(id1);
-            this.timeStamp = ZonedDateTime.parse(timeStamp1);
-            this.ref = ref1;
-            this.before = before1;
-            this.after = after1;
-            this.repository = repository1;
-            this.pusher = pusher1;
-            this.sender = sender1;
         }
+
+        this.id = UUID.fromString(id1);
+        this.timeStamp = ZonedDateTime.parse(timeStamp1);
+        this.ref = ref1;
+        this.before = before1;
+        this.after = after1;
+        this.repository = repository1;
+        this.pusher = pusher1;
+        this.sender = sender1;
 
         return this;
     }

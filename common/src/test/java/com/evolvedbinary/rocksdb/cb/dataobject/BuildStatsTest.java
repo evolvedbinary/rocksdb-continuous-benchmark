@@ -5,8 +5,6 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.ZonedDateTime;
-import java.util.UUID;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -16,9 +14,6 @@ public class BuildStatsTest {
 
     @Test
     public void serializeStream() throws IOException {
-        final UUID id = UUID.randomUUID();
-        final ZonedDateTime timeStamp = ZonedDateTime.now();
-
         final String expected = "{\"updateSourceTime\":2000,\"compilationTime\":1000,\"benchmarkTime\":5000}";
 
         final BuildStats deserialized = new BuildStats(2000, 1000, 5000);
@@ -76,9 +71,8 @@ public class BuildStatsTest {
 
     @Test
     public void deserializeUnexpectedJson() {
-        final UUID id = UUID.randomUUID();
         assertThrows(IOException.class, () -> {
-            new BuildStats().deserialize("{\"id\":\"" + id.toString() + "\",\"other\":{}}");
+            new BuildStats().deserialize("{other\":{}}");
         });
     }
 }

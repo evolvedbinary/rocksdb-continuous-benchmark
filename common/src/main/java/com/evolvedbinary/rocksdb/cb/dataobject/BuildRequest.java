@@ -5,8 +5,6 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
@@ -54,14 +52,6 @@ public class BuildRequest extends AbstractIdentifiableDataObject {
     }
 
     @Override
-    public void serialize(final OutputStream os) throws IOException {
-        try (final JsonGenerator generator = JSON_FACTORY.createGenerator(os)) {
-            generator.writeStartObject();
-            serializeFields(generator);
-            generator.writeEndObject();
-        }
-    }
-
     void serializeFields(final JsonGenerator generator) throws IOException {
         generator.writeStringField("id", id.toString());
         generator.writeStringField("timeStamp", timeStamp.toString());
@@ -73,19 +63,7 @@ public class BuildRequest extends AbstractIdentifiableDataObject {
     }
 
     @Override
-    public BuildRequest deserialize(final InputStream is) throws IOException {
-        try (final JsonParser parser = JSON_FACTORY.createParser(is)) {
-            // get the first token
-            final JsonToken token = parser.nextToken();
-            return deserialize(parser, token);
-        }
-    }
-
-    BuildRequest deserialize(final JsonParser parser, JsonToken token) throws IOException {
-        // Sanity check: verify that we got "Json Object":
-        if (token != JsonToken.START_OBJECT) {
-            throw new IOException("Expected data to start with an Object");
-        }
+    BuildRequest deserializeFields(final JsonParser parser, JsonToken token) throws IOException {
 
         // new data fields
         String id1 = null;

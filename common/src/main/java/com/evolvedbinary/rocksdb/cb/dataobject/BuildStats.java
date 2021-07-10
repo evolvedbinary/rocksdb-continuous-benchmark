@@ -5,8 +5,6 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 
 public class BuildStats extends AbstractDataObject {
 
@@ -48,14 +46,6 @@ public class BuildStats extends AbstractDataObject {
     }
 
     @Override
-    public void serialize(final OutputStream os) throws IOException {
-        try (final JsonGenerator generator = JSON_FACTORY.createGenerator(os)) {
-            generator.writeStartObject();
-            serializeFields(generator);
-            generator.writeEndObject();
-        }
-    }
-
     void serializeFields(final JsonGenerator generator) throws IOException {
         generator.writeNumberField("updateSourceTime", updateSourceTime);
         generator.writeNumberField("compilationTime", compilationTime);
@@ -63,19 +53,7 @@ public class BuildStats extends AbstractDataObject {
     }
 
     @Override
-    public BuildStats deserialize(final InputStream is) throws IOException {
-        try (final JsonParser parser = JSON_FACTORY.createParser(is)) {
-            // get the first token
-            final JsonToken token = parser.nextToken();
-            return deserialize(parser, token);
-        }
-    }
-
-    BuildStats deserialize(final JsonParser parser, JsonToken token) throws IOException {
-        // Sanity check: verify that we got "Json Object":
-        if (token != JsonToken.START_OBJECT) {
-            throw new IOException("Expected data to start with an Object");
-        }
+    BuildStats deserializeFields(final JsonParser parser, JsonToken token) throws IOException {
 
         // new data fields
         long updateSourceTime1 = -1;
