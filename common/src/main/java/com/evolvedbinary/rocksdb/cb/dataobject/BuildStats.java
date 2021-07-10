@@ -10,29 +10,41 @@ import java.io.OutputStream;
 
 public class BuildStats extends AbstractDataObject {
 
-    private long cloneTime = -1;
+    private long updateSourceTime = -1;
     private long compilationTime = -1;
     private long benchmarkTime = -1;
 
     public BuildStats() {
     }
 
-    public BuildStats(final long cloneTime, final long compilationTime, final long benchmarkTime) {
-        this.cloneTime = cloneTime;
+    public BuildStats(final long updateSourceTime, final long compilationTime, final long benchmarkTime) {
+        this.updateSourceTime = updateSourceTime;
         this.compilationTime = compilationTime;
         this.benchmarkTime = benchmarkTime;
     }
 
-    public long getCloneTime() {
-        return cloneTime;
+    public long getUpdateSourceTime() {
+        return updateSourceTime;
+    }
+
+    public void setUpdateSourceTime(final long updateSourceTime) {
+        this.updateSourceTime = updateSourceTime;
     }
 
     public long getCompilationTime() {
         return compilationTime;
     }
 
+    public void setCompilationTime(final long compilationTime) {
+        this.compilationTime = compilationTime;
+    }
+
     public long getBenchmarkTime() {
         return benchmarkTime;
+    }
+
+    public void setBenchmarkTime(final long benchmarkTime) {
+        this.benchmarkTime = benchmarkTime;
     }
 
     @Override
@@ -45,7 +57,7 @@ public class BuildStats extends AbstractDataObject {
     }
 
     void serializeFields(final JsonGenerator generator) throws IOException {
-        generator.writeNumberField("cloneTime", cloneTime);
+        generator.writeNumberField("updateSourceTime", updateSourceTime);
         generator.writeNumberField("compilationTime", compilationTime);
         generator.writeNumberField("benchmarkTime", benchmarkTime);
     }
@@ -66,7 +78,7 @@ public class BuildStats extends AbstractDataObject {
         }
 
         // new data fields
-        long cloneTime1 = -1;
+        long updateSourceTime1 = -1;
         long compilationTime1 = -1;
         long benchmarkTime1 = -1;
 
@@ -88,8 +100,8 @@ public class BuildStats extends AbstractDataObject {
                     throw new IOException("Expected field int value, but found: " + token);
                 }
 
-                if (fieldName.equals("cloneTime")) {
-                    cloneTime1 = parser.getValueAsLong();
+                if (fieldName.equals("updateSourceTime")) {
+                    updateSourceTime1 = parser.getValueAsLong();
                 } else if (fieldName.equals("compilationTime")) {
                     compilationTime1 = parser.getValueAsLong();
                 } else if (fieldName.equals("benchmarkTime")) {
@@ -98,7 +110,7 @@ public class BuildStats extends AbstractDataObject {
             }
         }
 
-        this.cloneTime = cloneTime1;
+        this.updateSourceTime = updateSourceTime1;
         this.compilationTime = compilationTime1;
         this.benchmarkTime = benchmarkTime1;
 
@@ -112,14 +124,14 @@ public class BuildStats extends AbstractDataObject {
 
         final BuildStats that = (BuildStats) o;
 
-        if (cloneTime != that.cloneTime) return false;
+        if (updateSourceTime != that.updateSourceTime) return false;
         if (compilationTime != that.compilationTime) return false;
         return benchmarkTime == that.benchmarkTime;
     }
 
     @Override
     public int hashCode() {
-        int result = (int) (cloneTime ^ (cloneTime >>> 32));
+        int result = (int) (updateSourceTime ^ (updateSourceTime >>> 32));
         result = 31 * result + (int) (compilationTime ^ (compilationTime >>> 32));
         result = 31 * result + (int) (benchmarkTime ^ (benchmarkTime >>> 32));
         return result;

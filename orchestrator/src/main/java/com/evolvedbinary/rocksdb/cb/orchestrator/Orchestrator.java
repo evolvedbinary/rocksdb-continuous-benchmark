@@ -300,17 +300,17 @@ public class Orchestrator {
                 return;
             }
 
-            // does response indicate building or built?
-            if (BuildState.BUILDING == buildResponse.getBuildState()) {
-                // record the updated state from `REQUESTED` to `BUILDING`
-                updateBuildState(builds, buildResponse.getBuildRequest(), BuildState.REQUESTED, BuildState.BUILDING);
+            // does the response indicate an update to the state of the build which is OK, or that the build completed, or encountered an error?
+            if (BuildState.isStateUpdateSuccessState(buildResponse.getBuildState())) {
+                // record the updated success state from `prev` to `next`
+                updateBuildState(builds, buildResponse.getBuildRequest(), buildResponse.getBuildState().getPrevBuildState(), buildResponse.getBuildState());
 
-            } else if (BuildState.BUILT == buildResponse.getBuildState()
-                    || BuildState.FAILED == buildResponse.getBuildState()) {
+            } else if (BuildState.isStateFinalSuccessState(buildResponse.getBuildState())
+                    || BuildState.isStateFailureState(buildResponse.getBuildState())) {
 
-                // record the updated state from `BUILDING` to `BUILT` or `FAILED`, i.e. DONE!
-                if (!removeBuildState(builds, buildResponse.getBuildRequest(), BuildState.BUILDING)) {
-                    LOGGER.error("Unable to remove Build State for ref: {} id: {}", buildResponse.getBuildRequest().getRef(), buildResponse.getBuildRequest().getId());
+                // record the final state, i.e. DONE!
+                if (!removeBuildState(builds, buildResponse.getBuildRequest(), buildResponse.getBuildState().getPrevBuildState())) {
+                    LOGGER.error("Unable to remove Build State {} for ref: {} id: {}", buildResponse.getBuildState().getPrevBuildState(), buildResponse.getBuildRequest().getRef(), buildResponse.getBuildRequest().getId());
                 }
 
                 // is there a build in the backlog? if so dispatch it

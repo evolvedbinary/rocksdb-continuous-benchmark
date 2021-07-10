@@ -19,7 +19,7 @@ public class BuildStatsTest {
         final UUID id = UUID.randomUUID();
         final ZonedDateTime timeStamp = ZonedDateTime.now();
 
-        final String expected = "{\"cloneTime\":2000,\"compilationTime\":1000,\"benchmarkTime\":5000}";
+        final String expected = "{\"updateSourceTime\":2000,\"compilationTime\":1000,\"benchmarkTime\":5000}";
 
         final BuildStats deserialized = new BuildStats(2000, 1000, 5000);
         final String serialized;
@@ -32,7 +32,7 @@ public class BuildStatsTest {
 
     @Test
     public void serializeString() throws IOException {
-        final String expected = "{\"cloneTime\":2000,\"compilationTime\":1000,\"benchmarkTime\":5000}";
+        final String expected = "{\"updateSourceTime\":2000,\"compilationTime\":1000,\"benchmarkTime\":5000}";
 
         final BuildStats deserialized = new BuildStats(2000, 1000, 5000);
         final String serialized = deserialized.serialize();
@@ -43,7 +43,7 @@ public class BuildStatsTest {
     public void deserializeStream() throws IOException {
         final BuildStats expected = new BuildStats(2000, 1000, 5000);
 
-        final String serialized = "{\"cloneTime\":2000,\"compilationTime\":1000,\"benchmarkTime\":5000}";
+        final String serialized = "{\"updateSourceTime\":2000,\"compilationTime\":1000,\"benchmarkTime\":5000}";
         final BuildStats deserialized = new BuildStats();
         try (final ByteArrayInputStream bais = new ByteArrayInputStream(serialized.getBytes(UTF_8))) {
             deserialized.deserialize(bais);
@@ -55,7 +55,7 @@ public class BuildStatsTest {
     public void deserializeString() throws IOException {
         final BuildStats expected = new BuildStats(2000, 1000, 5000);
 
-        final String serialized = "{\"cloneTime\":2000,\"compilationTime\":1000,\"benchmarkTime\":5000}";
+        final String serialized = "{\"updateSourceTime\":2000,\"compilationTime\":1000,\"benchmarkTime\":5000}";
         final BuildStats deserialized = new BuildStats().deserialize(serialized);
         assertEquals(expected, deserialized);
     }

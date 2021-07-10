@@ -18,7 +18,9 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 
 import javax.jms.*;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.*;
@@ -128,28 +130,29 @@ public class OrchestratorIT {
             assertEquals(webHookPayloadSummary.getAfter(), buildRequest.getCommit());
             assertEquals(webHookPayloadSummary.getSender(), buildRequest.getAuthor());
 
-            // Send a BuildResponse(BUILDING) to the BuildResponseQueue
-            final BuildResponse buildResponseBuilding = new BuildResponse(BuildState.BUILDING, buildRequest);
-            message = session.createTextMessage(buildResponseBuilding.serialize());
+            // Send the sequence of update messages that are produced during a successful build to the BuildResponseQueue
+            final List<BuildState> updateBuildStates = Arrays.asList(
+                    BuildState.UPDATING_SOURCE, BuildState.UPDATING_SOURCE_COMPLETE,
+                    BuildState.BUILDING, BuildState.BUILDING_COMPLETE,
+                    BuildState.BENCHMARKING);
+            for (final BuildState updateBuildState : updateBuildStates) {
+                final BuildResponse buildResponse = new BuildResponse(updateBuildState, buildRequest);
+                message = session.createTextMessage(buildResponse.serialize());
+                producer.send(buildResponseQueue, message);
+
+                // Check output queue is empty, as the orchestrator does not need to response to these it just updates its internal state
+                message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+                assertNull(message);
+            }
+
+            // Send a BuildResponse(BENCHMARKING_COMPLETE) to the BuildResponseQueue
+            final BuildResponse buildResponseBenchmarkingComplete = new BuildResponse(BuildState.BENCHMARKING_COMPLETE, buildRequest);
+            message = session.createTextMessage(buildResponseBenchmarkingComplete.serialize());
             producer.send(buildResponseQueue, message);
 
             /*
-                Orchestrator should received and process the BuildResponse(BUILDING),
-                and update its internal state for the build.
-            */
-
-            // Check output queue is empty
-            message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
-            assertNull(message);
-
-            // Send a BuildResponse(BUILT) to the BuildResponseQueue
-            final BuildResponse buildResponseBuilt = new BuildResponse(BuildState.BUILT, buildRequest);
-            message = session.createTextMessage(buildResponseBuilt.serialize());
-            producer.send(buildResponseQueue, message);
-
-            /*
-                Orchestrator should received and process the BuildResponse(BUILT),
-                update its internal state for the build, and then send the output
+                Orchestrator should received and process the BuildResponse(BENCHMARKING_COMPLETE),
+                and update its internal state for the build, and then send the output
                 to the OutputQueue
             */
 
@@ -158,7 +161,7 @@ public class OrchestratorIT {
             assertNotNull(message);
             assertTrue(message instanceof TextMessage);
             final BuildResponse outputBuildResponse = new BuildResponse().deserialize(((TextMessage)message).getText());
-            assertEquals(buildResponseBuilt, outputBuildResponse);
+            assertEquals(buildResponseBenchmarkingComplete, outputBuildResponse);
 
         } finally {
             instance.close();
@@ -166,7 +169,7 @@ public class OrchestratorIT {
     }
 
     @Test
-    public void fromHookToOutputNoRefFiltersAllBuildsFailed() throws IOException, JMSException {
+    public void fromHookToOutputNoRefFiltersAllBuildsUpdatingSourceFailed() throws IOException, JMSException {
         final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, OUTPUT_QUEUE_NAME, Collections.emptyList(), true);
         final Orchestrator orchestrator = new Orchestrator(settings);
 
@@ -200,13 +203,13 @@ public class OrchestratorIT {
             assertEquals(webHookPayloadSummary.getAfter(), buildRequest.getCommit());
             assertEquals(webHookPayloadSummary.getSender(), buildRequest.getAuthor());
 
-            // Send a BuildResponse(BUILDING) to the BuildResponseQueue
-            final BuildResponse buildResponseBuilding = new BuildResponse(BuildState.BUILDING, buildRequest);
+            // Send a BuildResponse(UPDATING_SOURCE) to the BuildResponseQueue
+            final BuildResponse buildResponseBuilding = new BuildResponse(BuildState.UPDATING_SOURCE, buildRequest);
             message = session.createTextMessage(buildResponseBuilding.serialize());
             producer.send(buildResponseQueue, message);
 
             /*
-                Orchestrator should received and process the BuildResponse(BUILDING),
+                Orchestrator should received and process the BuildResponse(UPDATING_SOURCE),
                 and update its internal state for the build.
             */
 
@@ -214,13 +217,13 @@ public class OrchestratorIT {
             message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
             assertNull(message);
 
-            // Send a BuildResponse(FAILED) to the BuildResponseQueue
-            final BuildResponse buildResponseBuilt = new BuildResponse(BuildState.FAILED, buildRequest);
-            message = session.createTextMessage(buildResponseBuilt.serialize());
+            // Send a BuildResponse(UPDATING_SOURCE_FAILED) to the BuildResponseQueue
+            final BuildResponse buildResponseUpdatingSourceFailed = new BuildResponse(BuildState.UPDATING_SOURCE_FAILED, buildRequest);
+            message = session.createTextMessage(buildResponseUpdatingSourceFailed.serialize());
             producer.send(buildResponseQueue, message);
 
             /*
-                Orchestrator should received and process the BuildResponse(FAILED),
+                Orchestrator should received and process the BuildResponse(UPDATING_SOURCE_FAILED),
                 update its internal state for the build, and then send the output
                 to the OutputQueue
             */
@@ -230,7 +233,152 @@ public class OrchestratorIT {
             assertNotNull(message);
             assertTrue(message instanceof TextMessage);
             final BuildResponse outputBuildResponse = new BuildResponse().deserialize(((TextMessage)message).getText());
-            assertEquals(buildResponseBuilt, outputBuildResponse);
+            assertEquals(buildResponseUpdatingSourceFailed, outputBuildResponse);
+
+        } finally {
+            instance.close();
+        }
+    }
+
+    @Test
+    public void fromHookToOutputNoRefFiltersAllBuildsBuildingFailed() throws IOException, JMSException {
+        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, OUTPUT_QUEUE_NAME, Collections.emptyList(), true);
+        final Orchestrator orchestrator = new Orchestrator(settings);
+
+        final Orchestrator.Instance instance = orchestrator.runAsync();
+        try {
+
+            // pre-flight - Check queues that we will consume are empty
+            Message message = buildRequestQueueConsumer.receive(IMMEDIATE_TIMEOUT);
+            assertNull(message);
+            message = outputQueueConsumer.receive(IMMEDIATE_TIMEOUT);
+            assertNull(message);
+
+            // send a WebHookPayloadSummary to the WebHookQueue
+            final WebHookPayloadSummary webHookPayloadSummary = new WebHookPayloadSummary("origin/refs/master", "abc", "def", "facebook/rocksdb", "pusher", "sender");
+            message = session.createTextMessage(webHookPayloadSummary.serialize());
+            producer.send(webHookQueue, message);
+
+            /*
+                Orchestrator should receive and process the WebHookPayloadSummary,
+                and then create and send a BuildRequest.
+            */
+
+            // expect a BuildRequest on the BuildRequestQueue
+            message = buildRequestQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+            assertNotNull(message);
+            assertTrue(message instanceof TextMessage);
+            final BuildRequest buildRequest = new BuildRequest().deserialize(((TextMessage)message).getText());
+            assertNotNull(buildRequest.getId());
+            assertNotNull(buildRequest.getTimeStamp());
+            assertEquals(webHookPayloadSummary.getRepository(), buildRequest.getRepository());
+            assertEquals(webHookPayloadSummary.getAfter(), buildRequest.getCommit());
+            assertEquals(webHookPayloadSummary.getSender(), buildRequest.getAuthor());
+
+            // Send the sequence of update messages that are produced before a BUILDING_FAILED state
+            final List<BuildState> updateBuildStates = Arrays.asList(
+                    BuildState.UPDATING_SOURCE, BuildState.UPDATING_SOURCE_COMPLETE,
+                    BuildState.BUILDING);
+            for (final BuildState updateBuildState : updateBuildStates) {
+                final BuildResponse buildResponse = new BuildResponse(updateBuildState, buildRequest);
+                message = session.createTextMessage(buildResponse.serialize());
+                producer.send(buildResponseQueue, message);
+
+                // Check output queue is empty, as the orchestrator does not need to response to these it just updates its internal state
+                message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+                assertNull(message);
+            }
+
+            // Send a BuildResponse(BUILDING_FAILED) to the BuildResponseQueue
+            final BuildResponse buildResponseBuildingFailed = new BuildResponse(BuildState.BUILDING_FAILED, buildRequest);
+            message = session.createTextMessage(buildResponseBuildingFailed.serialize());
+            producer.send(buildResponseQueue, message);
+
+            /*
+                Orchestrator should received and process the BuildResponse(BUILDING_FAILED),
+                update its internal state for the build, and then send the output
+                to the OutputQueue
+            */
+
+            // expect a BuildResponse on the OutputQueue
+            message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+            assertNotNull(message);
+            assertTrue(message instanceof TextMessage);
+            final BuildResponse outputBuildResponse = new BuildResponse().deserialize(((TextMessage)message).getText());
+            assertEquals(buildResponseBuildingFailed, outputBuildResponse);
+
+        } finally {
+            instance.close();
+        }
+    }
+
+    @Test
+    public void fromHookToOutputNoRefFiltersAllBuildsBenchmarkingFailed() throws IOException, JMSException {
+        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, OUTPUT_QUEUE_NAME, Collections.emptyList(), true);
+        final Orchestrator orchestrator = new Orchestrator(settings);
+
+        final Orchestrator.Instance instance = orchestrator.runAsync();
+        try {
+
+            // pre-flight - Check queues that we will consume are empty
+            Message message = buildRequestQueueConsumer.receive(IMMEDIATE_TIMEOUT);
+            assertNull(message);
+            message = outputQueueConsumer.receive(IMMEDIATE_TIMEOUT);
+            assertNull(message);
+
+            // send a WebHookPayloadSummary to the WebHookQueue
+            final WebHookPayloadSummary webHookPayloadSummary = new WebHookPayloadSummary("origin/refs/master", "abc", "def", "facebook/rocksdb", "pusher", "sender");
+            message = session.createTextMessage(webHookPayloadSummary.serialize());
+            producer.send(webHookQueue, message);
+
+            /*
+                Orchestrator should receive and process the WebHookPayloadSummary,
+                and then create and send a BuildRequest.
+            */
+
+            // expect a BuildRequest on the BuildRequestQueue
+            message = buildRequestQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+            assertNotNull(message);
+            assertTrue(message instanceof TextMessage);
+            final BuildRequest buildRequest = new BuildRequest().deserialize(((TextMessage)message).getText());
+            assertNotNull(buildRequest.getId());
+            assertNotNull(buildRequest.getTimeStamp());
+            assertEquals(webHookPayloadSummary.getRepository(), buildRequest.getRepository());
+            assertEquals(webHookPayloadSummary.getAfter(), buildRequest.getCommit());
+            assertEquals(webHookPayloadSummary.getSender(), buildRequest.getAuthor());
+
+            // Send the sequence of update messages that are produced before a BENCHMARKING_FAILED state
+            final List<BuildState> updateBuildStates = Arrays.asList(
+                    BuildState.UPDATING_SOURCE, BuildState.UPDATING_SOURCE_COMPLETE,
+                    BuildState.BUILDING, BuildState.BUILDING_COMPLETE,
+                    BuildState.BENCHMARKING);
+            for (final BuildState updateBuildState : updateBuildStates) {
+                final BuildResponse buildResponse = new BuildResponse(updateBuildState, buildRequest);
+                message = session.createTextMessage(buildResponse.serialize());
+                producer.send(buildResponseQueue, message);
+
+                // Check output queue is empty, as the orchestrator does not need to response to these it just updates its internal state
+                message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+                assertNull(message);
+            }
+
+            // Send a BuildResponse(BENCHMARKING_FAILED) to the BuildResponseQueue
+            final BuildResponse buildResponseBenchmarkingFailed = new BuildResponse(BuildState.BENCHMARKING_FAILED, buildRequest);
+            message = session.createTextMessage(buildResponseBenchmarkingFailed.serialize());
+            producer.send(buildResponseQueue, message);
+
+            /*
+                Orchestrator should received and process the BuildResponse(BENCHMARKING_FAILED),
+                update its internal state for the build, and then send the output
+                to the OutputQueue
+            */
+
+            // expect a BuildResponse on the OutputQueue
+            message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+            assertNotNull(message);
+            assertTrue(message instanceof TextMessage);
+            final BuildResponse outputBuildResponse = new BuildResponse().deserialize(((TextMessage)message).getText());
+            assertEquals(buildResponseBenchmarkingFailed, outputBuildResponse);
 
         } finally {
             instance.close();
