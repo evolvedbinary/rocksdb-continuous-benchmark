@@ -30,6 +30,9 @@ public class Main {
     private static final Argument<Boolean> KEEP_LOGS_ARG = optionArgument("--keep-logs")
             .description("Keep logs from builds. Without this flag successful build logs are removed, whilst failed builds logs are sent to the orchestrator and then removed.")
             .build();
+    private static final Argument<Boolean> KEEP_DATA_ARG = optionArgument("--keep-data")
+            .description("Keep data and wal files from benchmarks. Without this flag data and WAL files are removed.")
+            .build();
 
     public static void main(final String args[]) throws InterruptedException {
         final CommandLineParser parser = CommandLineParser.withArguments(
@@ -37,7 +40,8 @@ public class Main {
                 BUILD_REQUEST_QUEUE_NAME_ARG,
                 BUILD_RESPONSE_QUEUE_NAME_ARG,
                 DATA_DIR_NAME_ARG,
-                KEEP_LOGS_ARG);
+                KEEP_LOGS_ARG,
+                KEEP_DATA_ARG);
 
         try {
             final ParsedArguments parsedArguments = parser.parse(args);
@@ -53,8 +57,9 @@ public class Main {
                 System.exit(ExitCodes.INVALID_PATH);
             }
             final boolean keepLogs = parsedArguments.get(KEEP_LOGS_ARG);
+            final boolean keepData = parsedArguments.get(KEEP_DATA_ARG);
 
-            final Runner.Settings runnerSettings = new Runner.Settings(buildRequestQueueName, buildResponseQueueName, dataDir, keepLogs);
+            final Runner.Settings runnerSettings = new Runner.Settings(buildRequestQueueName, buildResponseQueueName, dataDir, keepLogs, keepData);
             final Runner runner = new Runner(runnerSettings);
             runner.runSync();
 

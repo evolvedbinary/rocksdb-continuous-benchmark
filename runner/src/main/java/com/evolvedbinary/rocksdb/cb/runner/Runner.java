@@ -1,6 +1,10 @@
 package com.evolvedbinary.rocksdb.cb.runner;
 
+import com.evolvedbinary.rocksdb.cb.common.PathUtil;
 import com.evolvedbinary.rocksdb.cb.dataobject.*;
+import com.evolvedbinary.rocksdb.cb.runner.benchmarker.BenchmarkResult;
+import com.evolvedbinary.rocksdb.cb.runner.benchmarker.Benchmarker;
+import com.evolvedbinary.rocksdb.cb.runner.benchmarker.JavaProcessBenchmarkerImpl;
 import com.evolvedbinary.rocksdb.cb.runner.builder.BuildResult;
 import com.evolvedbinary.rocksdb.cb.runner.builder.Builder;
 import com.evolvedbinary.rocksdb.cb.runner.builder.JavaProcessBuilderImpl;
@@ -30,14 +34,13 @@ import java.io.IOException;
 import java.lang.IllegalStateException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.evolvedbinary.rocksdb.cb.common.CloseUtil.closeAndLogIfException;
+import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Entry;
+import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Map;
 
 class Runner {
 
@@ -53,7 +56,11 @@ class Runner {
     private static final String MAIN_GIT_BRANCH = "master";
     private static final String REPO_DIR_NAME = "repo";
     private static final String LOG_DIR_NAME = "log";
+    private static final String DB_DIR_NAME = "db";
+    private static final String WAL_DIR_NAME = "wal";
     private static final List<String> DEFAULT_MAKE_TARGETS = Arrays.asList("db_bench");
+    private static final Map<String, String> DEFAULT_BENCHMARK_ENV = Map(Entry("NUM_KEYS", "10000"));
+    private static final List<String> DEFAULT_BENCHMARK_ARGS = Arrays.asList("fillseq_enable_wal");
 
     private final Settings settings;
 
@@ -223,7 +230,7 @@ class Runner {
                 return;  // nothing more can be done!
             }
 
-            // 4) build the repo
+            // 6) build the repo
             final long compileSourceStartTime = System.currentTimeMillis();
             final Path logDir = settings.dataDir.resolve(LOG_DIR_NAME);
             final Path projectLogDir = logDir.resolve(buildRequest.getRepository());
@@ -246,55 +253,126 @@ class Runner {
             buildStats.setCompilationTime(System.currentTimeMillis() - compileSourceStartTime);
 
 
-            // 6) did the builder succeed in building the source code?
+            // 7) did the builder succeed in building the source code?
             if (!buildResult.ok) {
                 // build FAILED
 
                 // get build logs
-                List<BuildDetail> buildDetails = null;
-                final byte[] stdOutLog = readFile(buildResult.stdOutputLogFile);
-                if (stdOutLog != null) {
-                    buildDetails = new ArrayList<>();
-                    buildDetails.add(BuildDetail.forStdOut(stdOutLog));
-                }
-                final byte[] stdErrLog = readFile(buildResult.stdErrorLogFile);
-                if (stdErrLog != null) {
-                    if (buildDetails == null) {
-                        buildDetails = new ArrayList<>();
-                    }
-                    buildDetails.add(BuildDetail.forStdErr(stdErrLog));
-                }
+                final List<BuildDetail> buildDetails = convertLogsToBuildDetails(buildResult.stdOutputLogFile, buildResult.stdErrorLogFile);
 
-                // 6.1) Send BUILDING FAILED
+                // 7.1) Send BUILDING_FAILED
                 sendFailureBuildStatus(BuildState.BUILDING_FAILED, buildRequest, buildStats, buildDetails);
 
             } else {
                 // build OK
 
-                // 6.2) Send BUILDING_COMPLETE
+                // 7.2) Send BUILDING_COMPLETE
                 if (!sendUpdatedBuildStatus(BuildState.BUILDING_COMPLETE, buildRequest, buildStats)) {
                     return;  // nothing more can be done!
                 }
             }
 
-            // 7) Send BENCHMARKING
+
+            // 8) Send BENCHMARKING
             if (!sendUpdatedBuildStatus(BuildState.BENCHMARKING, buildRequest, buildStats)) {
                 return;  // nothing more can be done!
             }
 
-            // 8) run the benchmarks
+            // 9) run the benchmarks
+            final Path dbDir = settings.dataDir.resolve(DB_DIR_NAME);
+            final Path walDir = settings.dataDir.resolve(WAL_DIR_NAME);
+            final Path projectDbDir = dbDir.resolve(buildRequest.getRepository());
+            final Path projectWalDir = walDir.resolve(buildRequest.getRepository());
 
-            // 8) Send BENCHMARKING_COMPLETE
+            final long benchmarkStartTime = System.currentTimeMillis();
 
+            final Benchmarker benchmarker = new JavaProcessBenchmarkerImpl();
+            final BenchmarkResult benchmarkResult;
+            try {
+                benchmarkResult = benchmarker.benchmark(buildRequest.getId(), projectRepoDir, projectLogDir, projectDbDir, projectWalDir, DEFAULT_BENCHMARK_ENV, DEFAULT_BENCHMARK_ARGS);
+            } catch (final IOException e) {
+                LOGGER.error("Unable to benchmark source code repo: {}. Error: {}", projectRepoDir, e.getMessage(), e);
+
+                // send BUILDING_FAILED
+                buildStats.setBenchmarkTime(System.currentTimeMillis() - benchmarkStartTime);
+                sendFailureBuildStatus(BuildState.BENCHMARKING_FAILED, buildRequest, buildStats, e);
+
+                return;  // nothing more can be done!
+            } finally {
+                if (!settings.keepData) {
+                    try {
+                        PathUtil.delete(projectWalDir);
+                    } catch (final IOException e) {
+                        LOGGER.warn("Unable to remove projectWalDir: {}: {}", projectWalDir.toAbsolutePath(), e.getMessage());
+                    }
+                    try {
+                        PathUtil.delete(projectDbDir);
+                    } catch (final IOException e) {
+                        LOGGER.warn("Unable to remove projectDbDir: {}: {}", projectDbDir.toAbsolutePath(), e.getMessage());
+                    }
+                }
+            }
+
+            // record the total time taken for building the source code
+            buildStats.setBenchmarkTime(System.currentTimeMillis() - benchmarkStartTime);
+
+            // get benchmark logs
+            final List<BuildDetail> buildDetails = convertLogsToBuildDetails(benchmarkResult.stdOutputLogFile, benchmarkResult.stdErrorLogFile);
+
+            // 10) did the builder succeed in building the source code?
+            if (!benchmarkResult.ok) {
+                // benchmark FAILED
+
+                // 10.1) Send BENCHMARKING_FAILED
+                sendFailureBuildStatus(BuildState.BENCHMARKING_FAILED, buildRequest, buildStats, buildDetails);
+
+            } else {
+                // benchmark OK
+
+                // 10.2) Send BENCHMARKING_COMPLETE
+                if (!sendUpdatedBuildStatus(BuildState.BENCHMARKING_COMPLETE, buildRequest, buildStats, buildDetails)) {
+                    return;  // nothing more can be done!
+                }
+            }
+
+            // DONE!
         }
     }
 
+    private @Nullable List<BuildDetail> convertLogsToBuildDetails(@Nullable final Path stdOutputLogFile, @Nullable final Path stdErrorLogFile) {
+        List<BuildDetail> buildDetails = null;
+
+        if (stdOutputLogFile != null) {
+            final byte[] stdOutLog = readFile(stdOutputLogFile);
+            if (stdOutLog != null) {
+                buildDetails = new ArrayList<>();
+                buildDetails.add(BuildDetail.forStdOut(stdOutLog));
+            }
+        }
+
+        if (stdErrorLogFile != null) {
+            final byte[] stdErrLog = readFile(stdErrorLogFile);
+            if (stdErrLog != null) {
+                if (buildDetails == null) {
+                    buildDetails = new ArrayList<>();
+                }
+                buildDetails.add(BuildDetail.forStdErr(stdErrLog));
+            }
+        }
+
+        return buildDetails;
+    }
+
     private boolean sendUpdatedBuildStatus(final BuildState newBuildState, final BuildRequest buildRequest, final BuildStats buildStats) {
+        return sendUpdatedBuildStatus(newBuildState, buildRequest, buildStats, null);
+    }
+
+    private boolean sendUpdatedBuildStatus(final BuildState newBuildState, final BuildRequest buildRequest, final BuildStats buildStats, @Nullable final List<BuildDetail> buildDetails) {
         if (!BuildState.isStateUpdateSuccessState(newBuildState) && !BuildState.isStateFinalSuccessState(newBuildState)) {
             throw new IllegalStateException("Cannot send update build status message for non-update state: " + newBuildState);
         }
 
-        final BuildResponse benchmarkingBuildResponse = new BuildResponse(newBuildState, buildRequest, buildStats, null);
+        final BuildResponse benchmarkingBuildResponse = new BuildResponse(newBuildState, buildRequest, buildStats, buildDetails);
         try {
             sendBuildResponseOutput(benchmarkingBuildResponse);
             return true;
@@ -444,12 +522,14 @@ class Runner {
         final String buildResponseQueueName;
         final Path dataDir;
         final boolean keepLogs;
+        final boolean keepData;
 
-        public Settings(final String buildRequestQueueName, final String buildResponseQueueName, final Path dataDir, final boolean keepLogs) {
+        public Settings(final String buildRequestQueueName, final String buildResponseQueueName, final Path dataDir, final boolean keepLogs, final boolean keepData) {
             this.buildRequestQueueName = buildRequestQueueName;
             this.buildResponseQueueName = buildResponseQueueName;
             this.dataDir = dataDir;
             this.keepLogs = keepLogs;
+            this.keepData = keepData;
         }
     }
 }

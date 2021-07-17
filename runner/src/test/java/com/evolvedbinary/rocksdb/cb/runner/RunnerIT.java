@@ -87,7 +87,7 @@ public class RunnerIT {
         //TODO(AR) use a temp dir
         final Path tempDir = Files.createDirectories(Paths.get("/tmp/cb-test"));
 
-        final Runner.Settings settings = new Runner.Settings(BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, true);
+        final Runner.Settings settings = new Runner.Settings(BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, true, true);
         final Runner runner = new Runner(settings);
 
         final Runner.Instance instance = runner.runAsync();

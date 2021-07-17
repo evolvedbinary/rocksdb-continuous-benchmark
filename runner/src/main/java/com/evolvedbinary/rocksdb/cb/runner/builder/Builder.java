@@ -17,13 +17,10 @@ public interface Builder {
      *
      * @return the result of the build
      *
-     * @throws IllegalArgumentException if the projectRepoDir does not exist,
-     *     if the projectLog dir does not exist or is not writable, or if less than
-     *     one target is specified.
-     *
      * @throws IllegalArgumentException if the {@code projectRepoDir} does not exist,
-     *     or if the {@projectLogDir} does not exist or cannot be created,
+     *     or if the {@code projectLogDir} does not exist or cannot be created,
      *     or if the targets list is empty
+     *
      * @throws IOException if the build cannot be started
      */
     BuildResult build(final UUID buildId, final Path projectRepoDir, final Path projectLogDir, final List<String> targets) throws IOException;

@@ -6,16 +6,22 @@ import com.evolvedbinary.rocksdb.cb.process.ProcessInfo;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 
+import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Entry;
+import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Map;
 import static com.evolvedbinary.rocksdb.cb.process.ProcessHelper.NORMAL_EXIT_CODE;
+
 
 public class JavaProcessBuilderImpl implements Builder {
 
-    private static final Map<String, String> DEFAULT_ENVIRONMENT_VARIABLES = new HashMap<>();
-    static {
-        DEFAULT_ENVIRONMENT_VARIABLES.put("DEBUG_LEVEL", "0");
-    }
+    private static final Map<String, String> DEFAULT_ENVIRONMENT_VARIABLES = Map(
+      Entry("DEBUG_LEVEL", "0")
+    );
     private static final String DEFAULT_COMMAND = "make";
     private static List<String> DEFAULT_ARGUMENTS = new ArrayList<>();
     static {
