@@ -1,5 +1,10 @@
 package com.evolvedbinary.rocksdb.cb.process;
 
+import com.evolvedbinary.rocksdb.cb.common.ListUtil;
+import com.evolvedbinary.rocksdb.cb.common.MapUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -9,10 +14,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static com.evolvedbinary.rocksdb.cb.common.ExitCodes.INTERRUPTED_EXIT_CODE;
+import static com.evolvedbinary.rocksdb.cb.common.ExitCodes.NORMAL_EXIT_CODE;
+
 public class ProcessHelper {
 
-    public static final int INTERRUPTED_EXIT_CODE = -1;
-    public static final int NORMAL_EXIT_CODE = 0;
+    private static final Logger LOGGER = LoggerFactory.getLogger(ProcessHelper.class);
 
     private static final DateTimeFormatter BASIC_ISO_DATE_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -39,6 +46,8 @@ public class ProcessHelper {
 
         processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(stdOutputLogFile.toFile()));
         processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(stdErrorLogFile.toFile()));
+
+        LOGGER.info("Executing: {} with environment [{}] and arguments [{}]", command, MapUtil.asString(environmentVariables), ListUtil.asString(arguments));
 
         final Process process = processBuilder.start();
         return new ProcessInfo(stdOutputLogFile, stdErrorLogFile, process);

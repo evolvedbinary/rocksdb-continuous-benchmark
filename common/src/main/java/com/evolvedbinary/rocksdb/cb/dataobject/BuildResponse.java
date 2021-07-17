@@ -58,6 +58,10 @@ public class BuildResponse extends AbstractIdentifiableDataObject {
         return buildStats;
     }
 
+    public @Nullable List<BuildDetail> getBuildDetails() {
+        return buildDetails;
+    }
+
     @Override
     void serializeFields(final JsonGenerator generator) throws IOException {
         generator.writeStringField("id", id.toString());

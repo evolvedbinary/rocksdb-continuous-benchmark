@@ -235,7 +235,12 @@ class Runner {
             final Path logDir = settings.dataDir.resolve(LOG_DIR_NAME);
             final Path projectLogDir = logDir.resolve(buildRequest.getRepository());
 
-            final Builder builder = new JavaProcessBuilderImpl();
+            final Builder builder;
+            if (settings.buildCommand != null) {
+                builder = new JavaProcessBuilderImpl(settings.buildCommand);
+            } else {
+                builder = new JavaProcessBuilderImpl();
+            }
             final BuildResult buildResult;
             try {
                 buildResult = builder.build(buildRequest.getId(), projectRepoDir, projectLogDir, DEFAULT_MAKE_TARGETS);
@@ -286,7 +291,13 @@ class Runner {
 
             final long benchmarkStartTime = System.currentTimeMillis();
 
-            final Benchmarker benchmarker = new JavaProcessBenchmarkerImpl();
+            final Benchmarker benchmarker;
+            if (settings.benchmarkCommand != null) {
+                benchmarker = new JavaProcessBenchmarkerImpl(settings.benchmarkCommand);
+            } else {
+                benchmarker = new JavaProcessBenchmarkerImpl();
+            }
+
             final BenchmarkResult benchmarkResult;
             try {
                 benchmarkResult = benchmarker.benchmark(buildRequest.getId(), projectRepoDir, projectLogDir, projectDbDir, projectWalDir, DEFAULT_BENCHMARK_ENV, DEFAULT_BENCHMARK_ARGS);
@@ -317,17 +328,21 @@ class Runner {
             buildStats.setBenchmarkTime(System.currentTimeMillis() - benchmarkStartTime);
 
             // get benchmark logs
-            final List<BuildDetail> buildDetails = convertLogsToBuildDetails(benchmarkResult.stdOutputLogFile, benchmarkResult.stdErrorLogFile);
+            final List<BuildDetail> buildDetails;
 
             // 10) did the builder succeed in building the source code?
             if (!benchmarkResult.ok) {
                 // benchmark FAILED
+
+                 buildDetails = convertLogsToBuildDetails(benchmarkResult.stdOutputLogFile, benchmarkResult.stdErrorLogFile);
 
                 // 10.1) Send BENCHMARKING_FAILED
                 sendFailureBuildStatus(BuildState.BENCHMARKING_FAILED, buildRequest, buildStats, buildDetails);
 
             } else {
                 // benchmark OK
+
+                buildDetails = convertLogsToBuildDetails(benchmarkResult.stdOutputLogFile, null);
 
                 // 10.2) Send BENCHMARKING_COMPLETE
                 if (!sendUpdatedBuildStatus(BuildState.BENCHMARKING_COMPLETE, buildRequest, buildStats, buildDetails)) {
@@ -401,17 +416,24 @@ class Runner {
     }
 
     private void sendBuildResponseOutput(final BuildResponse buildResponse) throws IOException, JMSException {
-        // send the message
-        sendMessage(buildResponse, buildResponseQueue);
+        final String content = buildResponse.serialize();
+        final TextMessage textMessage = session.createTextMessage(content);
+        buildResponseQueueProducer.send(textMessage);
+        LOGGER.info("Sent {} to Queue: {}", buildResponse.getClass().getName(), settings.buildResponseQueueName);
     }
 
-    private void sendMessage(final DataObject message, final Queue queue) throws IOException, JMSException {
-        // send the message
-        final String content = message.serialize();
-        final TextMessage textMessage = session.createTextMessage(content);
-        buildResponseQueueProducer.send(queue, textMessage);
-        LOGGER.info("Sent {} to Queue: {}", message.getClass().getName(), queue.getQueueName());
-    }
+//    private void sendBuildResponseOutput(final BuildResponse buildResponse) throws IOException, JMSException {
+//        // send the message
+//        sendMessage(buildResponse, buildResponseQueue);
+//    }
+//
+//    private void sendMessage(final DataObject message, final Queue queue) throws IOException, JMSException {
+//        // send the message
+//        final String content = message.serialize();
+//        final TextMessage textMessage = session.createTextMessage(content);
+//        buildResponseQueueProducer.send(queue, textMessage);
+//        LOGGER.info("Sent {} to Queue: {}", message.getClass().getName(), queue.getQueueName());
+//    }
 
     private static boolean acknowledgeMessage(final Message message) {
         try {
@@ -521,13 +543,17 @@ class Runner {
         final String buildRequestQueueName;
         final String buildResponseQueueName;
         final Path dataDir;
+        @Nullable final String buildCommand;
+        @Nullable final String benchmarkCommand;
         final boolean keepLogs;
         final boolean keepData;
 
-        public Settings(final String buildRequestQueueName, final String buildResponseQueueName, final Path dataDir, final boolean keepLogs, final boolean keepData) {
+        public Settings(final String buildRequestQueueName, final String buildResponseQueueName, final Path dataDir, @Nullable final String buildCommand, @Nullable final String benchmarkCommand, final boolean keepLogs, final boolean keepData) {
             this.buildRequestQueueName = buildRequestQueueName;
             this.buildResponseQueueName = buildResponseQueueName;
             this.dataDir = dataDir;
+            this.benchmarkCommand = benchmarkCommand;
+            this.buildCommand = buildCommand;
             this.keepLogs = keepLogs;
             this.keepData = keepData;
         }

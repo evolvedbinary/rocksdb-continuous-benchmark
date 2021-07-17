@@ -2,7 +2,7 @@ package com.evolvedbinary.rocksdb.cb.runner.builder;
 
 import java.nio.file.Path;
 
-import static com.evolvedbinary.rocksdb.cb.process.ProcessHelper.NORMAL_EXIT_CODE;
+import static com.evolvedbinary.rocksdb.cb.common.ExitCodes.NORMAL_EXIT_CODE;
 
 public class BuildResult {
     public final boolean ok;

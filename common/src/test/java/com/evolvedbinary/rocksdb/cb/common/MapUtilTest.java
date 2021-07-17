@@ -46,4 +46,14 @@ public class MapUtilTest {
         assertEquals(value2, map.get(key2));
         assertEquals(value3, map.get(key3));
     }
+
+    @Test
+    public void asString() {
+        final String key1 = "key1", value1 = "value1";
+        final String key2 = "key2", value2 = "value2";
+        final String key3 = "key3", value3 = "value3";
+
+        final Map<String, String> map = Map(Entry(key1, value1), Entry(key2, value2), Entry(key3, value3));
+        assertEquals("key1 -> value1, key2 -> value2, key3 -> value3", MapUtil.asString(map));
+    }
 }

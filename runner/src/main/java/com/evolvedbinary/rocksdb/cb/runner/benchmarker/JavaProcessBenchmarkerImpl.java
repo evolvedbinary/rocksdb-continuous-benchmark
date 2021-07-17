@@ -10,8 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
+import static com.evolvedbinary.rocksdb.cb.common.ExitCodes.NORMAL_EXIT_CODE;
 import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Map;
-import static com.evolvedbinary.rocksdb.cb.process.ProcessHelper.NORMAL_EXIT_CODE;
 
 public class JavaProcessBenchmarkerImpl implements Benchmarker {
 
@@ -27,9 +27,11 @@ public class JavaProcessBenchmarkerImpl implements Benchmarker {
     private final List<String> arguments;
 
     public JavaProcessBenchmarkerImpl() {
-        this.environmentVariables = DEFAULT_ENVIRONMENT_VARIABLES;
-        this.command = DEFAULT_COMMAND;
-        this.arguments = Collections.emptyList();
+        this(DEFAULT_ENVIRONMENT_VARIABLES, DEFAULT_COMMAND, Collections.emptyList());
+    }
+
+    public JavaProcessBenchmarkerImpl(final String command) {
+        this(DEFAULT_ENVIRONMENT_VARIABLES, command, Collections.emptyList());
     }
 
     JavaProcessBenchmarkerImpl(final Map<String, String> environmentVariables, final String command, final List<String> arguments) {
@@ -64,7 +66,7 @@ public class JavaProcessBenchmarkerImpl implements Benchmarker {
                 throw new IllegalArgumentException("The projectDbDir could not be created: " + projectDbDir.toAbsolutePath(), ioe);
             }
         }
-        benchmarkEnvironmentVariables.put(DB_DIR_ENV_VAR_NAME, projectDbDir.toAbsolutePath().toString());
+        allEnvironmentVariables.put(DB_DIR_ENV_VAR_NAME, projectDbDir.toAbsolutePath().toString());
 
         if (projectWalDir != null) {
             if (!Files.exists(Objects.requireNonNull(projectWalDir))) {
@@ -74,7 +76,7 @@ public class JavaProcessBenchmarkerImpl implements Benchmarker {
                     throw new IllegalArgumentException("The projectWalDir could not be created: " + projectWalDir.toAbsolutePath(), ioe);
                 }
             }
-            benchmarkEnvironmentVariables.put(WAL_DIR_ENV_VAR_NAME, projectWalDir.toAbsolutePath().toString());
+            allEnvironmentVariables.put(WAL_DIR_ENV_VAR_NAME, projectWalDir.toAbsolutePath().toString());
         }
 
         final List<String> allArguments = new ArrayList<>(arguments);

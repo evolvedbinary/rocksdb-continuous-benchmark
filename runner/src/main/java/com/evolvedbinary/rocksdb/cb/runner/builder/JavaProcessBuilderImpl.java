@@ -12,9 +12,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import static com.evolvedbinary.rocksdb.cb.common.ExitCodes.NORMAL_EXIT_CODE;
 import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Entry;
 import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Map;
-import static com.evolvedbinary.rocksdb.cb.process.ProcessHelper.NORMAL_EXIT_CODE;
 
 
 public class JavaProcessBuilderImpl implements Builder {
@@ -34,9 +34,11 @@ public class JavaProcessBuilderImpl implements Builder {
     private final List<String> arguments;
 
     public JavaProcessBuilderImpl() {
-        this.environmentVariables = DEFAULT_ENVIRONMENT_VARIABLES;
-        this.command = DEFAULT_COMMAND;
-        this.arguments = DEFAULT_ARGUMENTS;
+        this(DEFAULT_ENVIRONMENT_VARIABLES, DEFAULT_COMMAND, DEFAULT_ARGUMENTS);
+    }
+
+    public JavaProcessBuilderImpl(final String command) {
+        this(DEFAULT_ENVIRONMENT_VARIABLES, command, DEFAULT_ARGUMENTS);
     }
 
     JavaProcessBuilderImpl(final Map<String, String> environmentVariables, final String command, final List<String> arguments) {

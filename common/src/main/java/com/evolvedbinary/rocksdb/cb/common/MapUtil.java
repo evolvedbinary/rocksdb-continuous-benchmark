@@ -1,7 +1,9 @@
 package com.evolvedbinary.rocksdb.cb.common;
 
+import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -51,8 +53,8 @@ public interface MapUtil {
      *
      * @return the map
      */
-    static <K, V> Map<K, V> Map(final Entry... entries) {
-        return Map(HashMap::new, entries);
+    static <K, V> Map<K, V> Map(@Nullable final Entry... entries) {
+        return Map(len -> new HashMap(len), entries);
     }
 
     /**
@@ -66,13 +68,36 @@ public interface MapUtil {
      *
      * @return the map
      */
-    static <K, V> Map<K, V> Map(final Supplier<Map<K, V>> mapConstructor, final Entry... entries) {
-        final Map<K, V> map = mapConstructor.get();
+    static <K, V> Map<K, V> Map(final Function<Integer, Map<K, V>> mapConstructor, @Nullable final Entry... entries) {
+        final Map<K, V> map = mapConstructor.apply(entries != null ? entries.length : 0);
         if (entries != null) {
             for (final Entry<K, V> entry : entries) {
                 map.put(entry.key, entry.value);
             }
         }
         return map;
+    }
+
+    /**
+     * Write out a String representation of the entries in a Map.
+     *
+     * @param map the map
+     *
+     * @return the string representation
+     */
+    static <K, V> String asString(@Nullable final Map<K, V> map) {
+        final StringBuilder builder = new StringBuilder();
+        boolean first = true;
+        for (final Map.Entry<K, V> entry : map.entrySet()) {
+            if (!first) {
+                builder.append(", ");
+            } else {
+                first = false;
+            }
+            builder.append(entry.getKey());
+            builder.append(" -> ");
+            builder.append(entry.getValue());
+        }
+        return builder.toString();
     }
 }

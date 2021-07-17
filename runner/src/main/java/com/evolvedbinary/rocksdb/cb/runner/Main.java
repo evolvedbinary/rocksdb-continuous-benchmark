@@ -27,6 +27,12 @@ public class Main {
             .required()
             .description("The path to the data directory where the runner should keep its data")
             .build();
+    private static final Argument<String> BUILD_COMMAND_ARG = stringArgument("--build-command")
+            .description("The command to run to build the source code. Default is 'make'")
+            .build();
+    private static final Argument<String> BENCHMARK_COMMAND_ARG = stringArgument("--benchmark-command")
+            .description("The command to run to benchmark the source code. Default is 'tools" + File.separator + "benchmark.sh'")
+            .build();
     private static final Argument<Boolean> KEEP_LOGS_ARG = optionArgument("--keep-logs")
             .description("Keep logs from builds. Without this flag successful build logs are removed, whilst failed builds logs are sent to the orchestrator and then removed.")
             .build();
@@ -40,6 +46,8 @@ public class Main {
                 BUILD_REQUEST_QUEUE_NAME_ARG,
                 BUILD_RESPONSE_QUEUE_NAME_ARG,
                 DATA_DIR_NAME_ARG,
+                BUILD_COMMAND_ARG,
+                BENCHMARK_COMMAND_ARG,
                 KEEP_LOGS_ARG,
                 KEEP_DATA_ARG);
 
@@ -56,10 +64,12 @@ public class Main {
                 System.out.println("Unable to create data dir: " + e.getMessage());
                 System.exit(ExitCodes.INVALID_PATH);
             }
+            final String buildCommand = parsedArguments.get(BUILD_COMMAND_ARG);
+            final String benchmarkCommand = parsedArguments.get(BENCHMARK_COMMAND_ARG);
             final boolean keepLogs = parsedArguments.get(KEEP_LOGS_ARG);
             final boolean keepData = parsedArguments.get(KEEP_DATA_ARG);
 
-            final Runner.Settings runnerSettings = new Runner.Settings(buildRequestQueueName, buildResponseQueueName, dataDir, keepLogs, keepData);
+            final Runner.Settings runnerSettings = new Runner.Settings(buildRequestQueueName, buildResponseQueueName, dataDir, buildCommand, benchmarkCommand, keepLogs, keepData);
             final Runner runner = new Runner(runnerSettings);
             runner.runSync();
 
