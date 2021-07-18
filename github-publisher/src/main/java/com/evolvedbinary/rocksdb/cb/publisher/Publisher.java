@@ -8,6 +8,10 @@ public class Publisher {
         this.settings = settings;
     }
 
+    public void runSync() {
+        throw new UnsupportedOperationException("TODO(AR) implement");
+    }
+
     static class Settings {
         final String outputQueueName;
         final String repo;

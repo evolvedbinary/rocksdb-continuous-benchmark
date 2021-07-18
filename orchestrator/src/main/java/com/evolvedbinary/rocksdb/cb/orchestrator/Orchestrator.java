@@ -1,50 +1,27 @@
 package com.evolvedbinary.rocksdb.cb.orchestrator;
 
 import com.evolvedbinary.rocksdb.cb.dataobject.*;
-import org.apache.activemq.artemis.api.core.TransportConfiguration;
-import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
-import org.apache.activemq.artemis.api.jms.JMSFactoryType;
-import org.apache.activemq.artemis.core.remoting.impl.netty.NettyConnectorFactory;
+import com.evolvedbinary.rocksdb.cb.jms.AbstractJMSService;
+import com.evolvedbinary.rocksdb.cb.jms.JMSServiceState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import javax.jms.*;
 import javax.jms.Queue;
-import java.io.Closeable;
 import java.io.IOException;
-import java.lang.IllegalStateException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static com.evolvedbinary.rocksdb.cb.common.CloseUtil.closeAndLogIfException;
-
-public class Orchestrator {
-
-    private enum State {
-        IDLE,
-        RUNNING,
-        AWAITING_SHUTDOWN,
-        SHUTTING_DOWN
-    }
+public class Orchestrator extends AbstractJMSService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Orchestrator.class);
-    private static final AtomicReference<State> STATE = new AtomicReference<>(State.IDLE);
+    private static final AtomicReference<JMSServiceState> STATE = new AtomicReference<>(JMSServiceState.IDLE);
 
     private final Settings settings;
-
-    private Connection connection;
-    private Session session;
-    private Queue webHookQueue;
-    private Queue buildRequestQueue;
-    private Queue buildResponseQueue;
-    private Queue outputQueue;
-    private MessageProducer producer;
-    private MessageConsumer webHookQueueConsumer;
-    private MessageConsumer buildResponseQueueConsumer;
 
     // TODO(AR) internal state needs to be persisted somewhere -- load and resume after restart
     private final Map<String, Map<UUID, Build>> builds = new ConcurrentHashMap<>();
@@ -64,62 +41,42 @@ public class Orchestrator {
         this.settings = settings;
     }
 
-    public void runSync() throws InterruptedException {
-        final Instance instance = runAsync();
-        instance.awaitShutdown();
+    @Override
+    protected Logger getLogger() {
+        return LOGGER;
     }
 
-    public Instance runAsync() {
-        if (!STATE.compareAndSet(State.IDLE, State.RUNNING)) {
-            throw new IllegalStateException("Already running");
+    @Override
+    protected AtomicReference<JMSServiceState> getState() {
+        return STATE;
+    }
+
+    @Override
+    protected String getClientId() {
+        return "orchestrator";
+    }
+
+    @Override
+    protected List<String> getQueueNames() {
+        return Arrays.asList(
+                settings.webHookQueueName,
+                settings.buildRequestQueueName,
+                settings.buildResponseQueueName,
+                settings.outputQueueName
+        );
+    }
+
+    @Nullable
+    @Override
+    protected MessageListener getListener(final String queueName) {
+        if (settings.webHookQueueName.equals(queueName)) {
+            return new WebHookQueueMessageListener();
+
+        } else if (settings.buildResponseQueueName.equals(queueName)) {
+            return new BuildResponseQueueMessageListener();
         }
 
-        // setup JMS
-        final TransportConfiguration transportConfiguration = new TransportConfiguration(NettyConnectorFactory.class.getName());
-        final ConnectionFactory connectionFactory = ActiveMQJMSClient.createConnectionFactoryWithoutHA(JMSFactoryType.CF, transportConfiguration);
-
-        try {
-            this.connection = connectionFactory.createConnection();
-            this.connection.setClientID("orchestrator");
-
-            this.session = connection.createSession(false, Session.CLIENT_ACKNOWLEDGE);
-
-            this.webHookQueue = session.createQueue(settings.webHookQueueName);
-            this.buildRequestQueue = session.createQueue(settings.buildRequestQueueName);
-            this.buildResponseQueue = session.createQueue(settings.buildResponseQueueName);
-            this.outputQueue = session.createQueue(settings.outputQueueName);
-
-            this.producer = session.createProducer(null);
-
-            this.webHookQueueConsumer = session.createConsumer(webHookQueue);
-            this.webHookQueueConsumer.setMessageListener(new WebHookQueueMessageListener());
-            LOGGER.info("Listening to Queue: {}", settings.webHookQueueName);
-
-            this.buildResponseQueueConsumer = session.createConsumer(buildResponseQueue);
-            this.buildResponseQueueConsumer.setMessageListener(new BuildResponseQueueMessageListener());
-            LOGGER.info("Listening to Queue: {}", settings.buildResponseQueueName);
-
-            // start the connection
-            this.connection.start();
-
-        } catch (final JMSException e) {
-            if (this.connection != null) {
-                closeAndLogIfException(connection::stop, LOGGER);
-            }
-
-            closeAndLogIfException(this.buildResponseQueueConsumer, LOGGER);
-            closeAndLogIfException(this.webHookQueueConsumer, LOGGER);
-            closeAndLogIfException(this.producer, LOGGER);
-            closeAndLogIfException(this.session, LOGGER);
-            closeAndLogIfException(this.connection, LOGGER);
-
-            throw new RuntimeException("Unable to setup JMS broker connection: " + e.getMessage(), e);
-        }
-
-        final ExecutorService executorService = Executors.newFixedThreadPool(1, r -> new Thread(r, "Orchestrator-Thread"));
-        final Future<?> orchestrateFuture = executorService.submit(new OrchestratorCallable());
-
-        return new Instance(executorService, orchestrateFuture);
+        return null;
     }
 
     private class WebHookQueueMessageListener implements MessageListener {
@@ -245,6 +202,7 @@ public class Orchestrator {
 
     private void sendBuildRequest(final BuildRequest buildRequest) throws IOException, JMSException {
         // send the message
+        final Queue buildRequestQueue = getQueue(settings.buildRequestQueueName);
         sendMessage(buildRequest, buildRequestQueue);
 
         // record the updated state from `REQUESTING` to `REQUESTED`
@@ -253,15 +211,8 @@ public class Orchestrator {
 
     private void sendOutput(final BuildResponse buildResponse) throws IOException, JMSException {
         // send the message
+        final Queue outputQueue = getQueue(settings.outputQueueName);
         sendMessage(buildResponse, outputQueue);
-    }
-
-    private void sendMessage(final DataObject message, final Queue queue) throws IOException, JMSException {
-        // send the message
-        final String content = message.serialize();
-        final TextMessage textMessage = session.createTextMessage(content);
-        producer.send(queue, textMessage);
-        LOGGER.info("Sent {} to Queue: {}", message.getClass().getName(), queue.getQueueName());
     }
 
     private class BuildResponseQueueMessageListener implements MessageListener {
@@ -269,7 +220,7 @@ public class Orchestrator {
         public void onMessage(final Message message) {
             if (!(message instanceof TextMessage)) {
                 // acknowledge invalid message so that it is removed from the queue
-                if (acknowledgeMessage(message)) {
+                if (Orchestrator.this.acknowledgeMessage(message)) {
                     LOGGER.error("Discarded message with unexpected type {} from Queue: {}.", message.getClass().getName(), settings.buildResponseQueueName);
                 }
 
@@ -330,16 +281,6 @@ public class Orchestrator {
             }
 
             acknowledgeMessage(message);
-        }
-    }
-
-    private static boolean acknowledgeMessage(final Message message) {
-        try {
-            message.acknowledge();
-            return true;
-        } catch (final JMSException e) {
-            LOGGER.error("Unable to acknowledge message: {}", e.getMessage(), e);
-            return false;
         }
     }
 
@@ -454,86 +395,6 @@ public class Orchestrator {
             LOGGER.trace("Removed Build State for ref: {} id: {}, {}", buildRequest.getRef(), buildRequest.getId(), removeState.name());
         }
         return removed;
-    }
-
-    private class OrchestratorCallable implements Callable<Void> {
-        @Override
-        public Void call() throws Exception {
-            try {
-
-                // loop and sleep... until InterruptedException
-                while (true) {
-                    Thread.sleep(5000);
-                }
-
-            } catch (final Exception e) {
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();  // restore interrupt flag
-                }
-
-                // attempt JMS shutdown
-                if (connection != null) {
-                    closeAndLogIfException(connection::stop, LOGGER);
-                }
-                closeAndLogIfException(buildResponseQueueConsumer, LOGGER);
-                closeAndLogIfException(webHookQueueConsumer, LOGGER);
-                closeAndLogIfException(producer, LOGGER);
-                closeAndLogIfException(session, LOGGER);
-                closeAndLogIfException(connection, LOGGER);
-
-                throw e;
-            }
-        }
-    }
-
-    static class Instance implements Closeable {
-        private final ExecutorService executorService;
-        private final Future<?> orchestrateFuture;
-
-        private Instance(final ExecutorService executorService, final Future<?> orchestrateFuture) {
-            this.executorService = executorService;
-            this.orchestrateFuture = orchestrateFuture;
-        }
-
-        /**
-         * Wait until the orchestrate future completes.
-         */
-        public void awaitShutdown() throws InterruptedException {
-            if (!STATE.compareAndSet(State.RUNNING, State.AWAITING_SHUTDOWN)) {
-                throw new IllegalStateException("Not running");
-            }
-
-            try {
-                orchestrateFuture.get();
-
-                if (!executorService.isShutdown()) {
-                    executorService.shutdownNow();
-                }
-
-            } catch (final ExecutionException e) {
-                LOGGER.error("Orchestrator raised an exception: " + e.getMessage(), e);
-            } finally {
-                STATE.set(State.IDLE);
-            }
-        }
-
-        @Override
-        public void close() {
-            if (!STATE.compareAndSet(State.RUNNING, State.SHUTTING_DOWN)) {
-                throw new IllegalStateException("Not running");
-            }
-
-            try {
-                orchestrateFuture.cancel(true);
-
-                if (!executorService.isShutdown()) {
-                    executorService.shutdownNow();
-                }
-
-            } finally {
-                STATE.set(State.IDLE);
-            }
-        }
     }
 
     static class Settings {
