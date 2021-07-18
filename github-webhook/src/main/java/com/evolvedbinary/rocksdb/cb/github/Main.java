@@ -36,7 +36,7 @@ public class Main {
             .description("The name of the JMS Queue for GitHub WebHook messages")
             .build();
 
-    public static void main(final String args[]) throws InterruptedException {
+    public static void main(final String args[]) {
         final CommandLineParser parser = CommandLineParser.withArguments(
                 HELP_ARG,
                 PORT_ARG,
@@ -74,6 +74,11 @@ public class Main {
         } catch (final IOException e) {
             System.out.println(e.getMessage());
             System.exit(ExitCodes.UNABLE_TO_CONNECT_TO_JMS_BROKER);
+
+        } catch (final InterruptedException e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+            System.exit(ExitCodes.INTERRUPTED_EXIT_CODE);
         }
     }
 }

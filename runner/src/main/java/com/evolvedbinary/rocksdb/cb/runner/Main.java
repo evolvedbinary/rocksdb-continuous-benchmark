@@ -40,7 +40,7 @@ public class Main {
             .description("Keep data and wal files from benchmarks. Without this flag data and WAL files are removed.")
             .build();
 
-    public static void main(final String args[]) throws InterruptedException {
+    public static void main(final String args[]) {
         final CommandLineParser parser = CommandLineParser.withArguments(
                 HELP_ARG,
                 BUILD_REQUEST_QUEUE_NAME_ARG,
@@ -76,6 +76,11 @@ public class Main {
         } catch (final ArgumentException e) {
             System.out.println(e.getMessageAndUsage());
             System.exit(ExitCodes.INVALID_ARGUMENT);
+
+        } catch (final InterruptedException e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+            System.exit(ExitCodes.INTERRUPTED_EXIT_CODE);
         }
     }
 }

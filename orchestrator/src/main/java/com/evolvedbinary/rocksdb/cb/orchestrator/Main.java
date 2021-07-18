@@ -41,7 +41,7 @@ public class Main {
             .description("Causes every request to be built. By default when a build is in progress, any incoming commits apart from the latest for the same ref are discarded.")
             .build();
 
-    public static void main(final String args[]) throws InterruptedException {
+    public static void main(final String args[]) {
         final CommandLineParser parser = CommandLineParser.withArguments(
                 HELP_ARG,
                 WEBHOOK_QUEUE_NAME_ARG,
@@ -86,6 +86,11 @@ public class Main {
         } catch (final ArgumentException e) {
             System.out.println(e.getMessageAndUsage());
             System.exit(ExitCodes.INVALID_ARGUMENT);
+
+        } catch (final InterruptedException e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+            System.exit(ExitCodes.INTERRUPTED_EXIT_CODE);
         }
     }
 }

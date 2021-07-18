@@ -44,6 +44,8 @@
 
     <modules>
         <module>common</module>
+        <module>git-support</module>
+        <module>github-publisher</module>
         <module>github-webhook</module>
         <module>orchestrator</module>
         <module>runner</module>
