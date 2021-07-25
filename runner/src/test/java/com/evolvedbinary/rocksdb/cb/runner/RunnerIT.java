@@ -1,6 +1,7 @@
 package com.evolvedbinary.rocksdb.cb.runner;
 
 import com.evolvedbinary.rocksdb.cb.dataobject.*;
+import com.evolvedbinary.rocksdb.cb.jms.JMSServiceInstance;
 import com.evolvedbinary.rocksdb.cb.junit.JUnit5ExternalResourceAdapter;
 import org.apache.activemq.artemis.api.core.TransportConfiguration;
 import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
@@ -93,7 +94,7 @@ public class RunnerIT {
         final Runner.Settings settings = new Runner.Settings(BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, null, null, true, true);
         final Runner runner = new Runner(settings);
 
-        final Runner.Instance instance = runner.runAsync();
+        final JMSServiceInstance instance = runner.runAsync();
         try {
 
             // pre-flight - Check queues that we will consume are empty
@@ -169,7 +170,7 @@ public class RunnerIT {
         final Runner.Settings settings = new Runner.Settings(BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, null, null, true, true);
         final Runner runner = new Runner(settings);
 
-        final Runner.Instance instance = runner.runAsync();
+        final JMSServiceInstance instance = runner.runAsync();
         try {
 
             // pre-flight - Check queues that we will consume are empty
@@ -235,7 +236,7 @@ public class RunnerIT {
         final Runner.Settings settings = new Runner.Settings(BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, null, null, true, true);
         final Runner runner = new Runner(settings);
 
-        final Runner.Instance instance = runner.runAsync();
+        final JMSServiceInstance instance = runner.runAsync();
         try {
 
             // pre-flight - Check queues that we will consume are empty
@@ -302,7 +303,7 @@ public class RunnerIT {
         final Runner.Settings settings = new Runner.Settings(BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, invalidBuildCommand, null, true, true);
         final Runner runner = new Runner(settings);
 
-        final Runner.Instance instance = runner.runAsync();
+        final JMSServiceInstance instance = runner.runAsync();
         try {
 
             // pre-flight - Check queues that we will consume are empty
@@ -376,7 +377,7 @@ public class RunnerIT {
         final Runner.Settings settings = new Runner.Settings(BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, null, invalidBenchmarkCommand, true, true);
         final Runner runner = new Runner(settings);
 
-        final Runner.Instance instance = runner.runAsync();
+        final JMSServiceInstance instance = runner.runAsync();
         try {
 
             // pre-flight - Check queues that we will consume are empty

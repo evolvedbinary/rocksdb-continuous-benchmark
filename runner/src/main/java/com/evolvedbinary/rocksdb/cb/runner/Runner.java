@@ -2,6 +2,8 @@ package com.evolvedbinary.rocksdb.cb.runner;
 
 import com.evolvedbinary.rocksdb.cb.common.PathUtil;
 import com.evolvedbinary.rocksdb.cb.dataobject.*;
+import com.evolvedbinary.rocksdb.cb.jms.AbstractJMSService;
+import com.evolvedbinary.rocksdb.cb.jms.JMSServiceState;
 import com.evolvedbinary.rocksdb.cb.runner.benchmarker.BenchmarkResult;
 import com.evolvedbinary.rocksdb.cb.runner.benchmarker.Benchmarker;
 import com.evolvedbinary.rocksdb.cb.runner.benchmarker.JavaProcessBenchmarkerImpl;
@@ -11,48 +13,30 @@ import com.evolvedbinary.rocksdb.cb.runner.builder.JavaProcessBuilderImpl;
 import com.evolvedbinary.rocksdb.cb.scm.GitHelper;
 import com.evolvedbinary.rocksdb.cb.scm.GitHelperException;
 import com.evolvedbinary.rocksdb.cb.scm.JGitGitHelperImpl;
-import org.apache.activemq.artemis.api.core.TransportConfiguration;
-import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
-import org.apache.activemq.artemis.api.jms.JMSFactoryType;
-import org.apache.activemq.artemis.core.remoting.impl.netty.NettyConnectorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
-import javax.jms.Connection;
-import javax.jms.ConnectionFactory;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageListener;
-import javax.jms.MessageProducer;
-import javax.jms.Queue;
-import javax.jms.Session;
-import javax.jms.TextMessage;
-import java.io.Closeable;
+import javax.jms.*;
 import java.io.IOException;
 import java.lang.IllegalStateException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.evolvedbinary.rocksdb.cb.common.CloseUtil.closeAndLogIfException;
 import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Entry;
 import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Map;
 
-class Runner {
-
-    private enum State {
-        IDLE,
-        RUNNING,
-        AWAITING_SHUTDOWN,
-        SHUTTING_DOWN
-    }
+class Runner extends AbstractJMSService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Runner.class);
-    private static final AtomicReference<State> STATE = new AtomicReference<>(State.IDLE);
+    private static final AtomicReference<JMSServiceState> STATE = new AtomicReference<>(JMSServiceState.IDLE);
+
     private static final String MAIN_GIT_BRANCH = "master";
     private static final String REPO_DIR_NAME = "repo";
     private static final String LOG_DIR_NAME = "log";
@@ -63,67 +47,46 @@ class Runner {
     private static final List<String> DEFAULT_BENCHMARK_ARGS = Arrays.asList("fillseq_enable_wal");
 
     private final Settings settings;
-
-    private Connection connection;
-    private Session session;
-    private Queue buildRequestQueue;
-    private Queue buildResponseQueue;
-    private MessageConsumer buildRequestQueueConsumer;
-    private MessageProducer buildResponseQueueProducer;
+    private final String clientId;
+    private final BuildRequestQueueMessageListener buildRequestQueueMessageListener = new BuildRequestQueueMessageListener();
 
     public Runner(final Settings settings) {
         this.settings = settings;
+        this.clientId = "runner" + UUID.randomUUID();
     }
 
-    public void runSync() throws InterruptedException {
-        final Instance instance = runAsync();
-        instance.awaitShutdown();
+    @Override
+    protected Logger getLogger() {
+        return LOGGER;
     }
 
-    public Instance runAsync() {
-        if (!STATE.compareAndSet(State.IDLE, State.RUNNING)) {
-            throw new IllegalStateException("Already running");
+    @Override
+    protected AtomicReference<JMSServiceState> getState() {
+        return STATE;
+    }
+
+    @Override
+    protected String getClientId() {
+        return clientId ;
+    }
+
+    @Override
+    protected List<String> getQueueNames() {
+        return Arrays.asList(
+                settings.buildRequestQueueName,
+                settings.buildResponseQueueName
+        );
+    }
+
+    @Nullable
+    @Override
+    protected MessageListener getListener(final String queueName) {
+        if (settings.buildRequestQueueName.equals(queueName)) {
+            return buildRequestQueueMessageListener;
+
         }
 
-        // setup JMS
-        final TransportConfiguration transportConfiguration = new TransportConfiguration(NettyConnectorFactory.class.getName());
-        final ConnectionFactory connectionFactory = ActiveMQJMSClient.createConnectionFactoryWithoutHA(JMSFactoryType.CF, transportConfiguration);
-
-        try {
-            this.connection = connectionFactory.createConnection();
-            this.connection.setClientID("runner-" + UUID.randomUUID());
-
-            this.session = connection.createSession(false, Session.CLIENT_ACKNOWLEDGE);
-
-            this.buildRequestQueue = session.createQueue(settings.buildRequestQueueName);
-            this.buildResponseQueue = session.createQueue(settings.buildResponseQueueName);
-
-            this.buildRequestQueueConsumer = session.createConsumer(buildRequestQueue);
-            this.buildRequestQueueConsumer.setMessageListener(new BuildRequestQueueMessageListener());
-            LOGGER.info("Listening to Queue: {}", settings.buildRequestQueueName);
-
-            this.buildResponseQueueProducer = session.createProducer(buildResponseQueue);
-
-            // start the connection
-            this.connection.start();
-
-        } catch (final JMSException e) {
-            if (this.connection != null) {
-                closeAndLogIfException(connection::stop, LOGGER);
-            }
-
-            closeAndLogIfException(this.buildResponseQueueProducer, LOGGER);
-            closeAndLogIfException(this.buildRequestQueueConsumer, LOGGER);
-            closeAndLogIfException(this.session, LOGGER);
-            closeAndLogIfException(this.connection, LOGGER);
-
-            throw new RuntimeException("Unable to setup JMS broker connection: " + e.getMessage(), e);
-        }
-
-        final ExecutorService executorService = Executors.newFixedThreadPool(1, r -> new Thread(r, "Runner-Thread"));
-        final Future<?> runnerFuture = executorService.submit(new RunnerCallable());
-
-        return new Instance(executorService, runnerFuture);
+        return null;
     }
 
     private class BuildRequestQueueMessageListener implements MessageListener {
@@ -354,30 +317,6 @@ class Runner {
         }
     }
 
-    private @Nullable List<BuildDetail> convertLogsToBuildDetails(@Nullable final Path stdOutputLogFile, @Nullable final Path stdErrorLogFile) {
-        List<BuildDetail> buildDetails = null;
-
-        if (stdOutputLogFile != null) {
-            final byte[] stdOutLog = readFile(stdOutputLogFile);
-            if (stdOutLog != null) {
-                buildDetails = new ArrayList<>();
-                buildDetails.add(BuildDetail.forStdOut(stdOutLog));
-            }
-        }
-
-        if (stdErrorLogFile != null) {
-            final byte[] stdErrLog = readFile(stdErrorLogFile);
-            if (stdErrLog != null) {
-                if (buildDetails == null) {
-                    buildDetails = new ArrayList<>();
-                }
-                buildDetails.add(BuildDetail.forStdErr(stdErrLog));
-            }
-        }
-
-        return buildDetails;
-    }
-
     private boolean sendUpdatedBuildStatus(final BuildState newBuildState, final BuildRequest buildRequest, final BuildStats buildStats) {
         return sendUpdatedBuildStatus(newBuildState, buildRequest, buildStats, null);
     }
@@ -416,33 +355,33 @@ class Runner {
     }
 
     private void sendBuildResponseOutput(final BuildResponse buildResponse) throws IOException, JMSException {
-        final String content = buildResponse.serialize();
-        final TextMessage textMessage = session.createTextMessage(content);
-        buildResponseQueueProducer.send(textMessage);
-        LOGGER.info("Sent {} to Queue: {}", buildResponse.getClass().getName(), settings.buildResponseQueueName);
+        // send the message
+        final Queue buildResponseQueue = getQueue(settings.buildResponseQueueName);
+        sendMessage(buildResponse, buildResponseQueue);
     }
 
-//    private void sendBuildResponseOutput(final BuildResponse buildResponse) throws IOException, JMSException {
-//        // send the message
-//        sendMessage(buildResponse, buildResponseQueue);
-//    }
-//
-//    private void sendMessage(final DataObject message, final Queue queue) throws IOException, JMSException {
-//        // send the message
-//        final String content = message.serialize();
-//        final TextMessage textMessage = session.createTextMessage(content);
-//        buildResponseQueueProducer.send(queue, textMessage);
-//        LOGGER.info("Sent {} to Queue: {}", message.getClass().getName(), queue.getQueueName());
-//    }
+    private @Nullable List<BuildDetail> convertLogsToBuildDetails(@Nullable final Path stdOutputLogFile, @Nullable final Path stdErrorLogFile) {
+        List<BuildDetail> buildDetails = null;
 
-    private static boolean acknowledgeMessage(final Message message) {
-        try {
-            message.acknowledge();
-            return true;
-        } catch (final JMSException e) {
-            LOGGER.error("Unable to acknowledge message: {}", e.getMessage(), e);
-            return false;
+        if (stdOutputLogFile != null) {
+            final byte[] stdOutLog = readFile(stdOutputLogFile);
+            if (stdOutLog != null) {
+                buildDetails = new ArrayList<>();
+                buildDetails.add(BuildDetail.forStdOut(stdOutLog));
+            }
         }
+
+        if (stdErrorLogFile != null) {
+            final byte[] stdErrLog = readFile(stdErrorLogFile);
+            if (stdErrLog != null) {
+                if (buildDetails == null) {
+                    buildDetails = new ArrayList<>();
+                }
+                buildDetails.add(BuildDetail.forStdErr(stdErrLog));
+            }
+        }
+
+        return buildDetails;
     }
 
     private static byte[] readFile(@Nullable final Path path) {
@@ -458,84 +397,6 @@ class Runner {
         } catch (final IOException e) {
             LOGGER.error("Unable to read file: {}. {}", path.toAbsolutePath().toString(), e.getMessage(), e);
             return null;
-        }
-    }
-
-    private class RunnerCallable implements Callable<Void> {
-        @Override
-        public Void call() throws Exception {
-            try {
-                // loop and sleep... until InterruptedException
-                while (true) {
-                    Thread.sleep(5000);
-                }
-
-            } catch (final Exception e) {
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();  // restore interrupt flag
-                }
-
-                // attempt JMS shutdown
-                if (connection != null) {
-                    closeAndLogIfException(connection::stop, LOGGER);
-                }
-                closeAndLogIfException(buildResponseQueueProducer, LOGGER);
-                closeAndLogIfException(buildRequestQueueConsumer, LOGGER);
-                closeAndLogIfException(session, LOGGER);
-                closeAndLogIfException(connection, LOGGER);
-
-                throw e;
-            }
-        }
-    }
-
-    static class Instance implements Closeable {
-        private final ExecutorService executorService;
-        private final Future<?> runnerFuture;
-
-        private Instance(final ExecutorService executorService, final Future<?> runnerFuture) {
-            this.executorService = executorService;
-            this.runnerFuture = runnerFuture;
-        }
-
-        /**
-         * Wait until the orchestrate future completes.
-         */
-        public void awaitShutdown() throws InterruptedException {
-            if (!STATE.compareAndSet(State.RUNNING, State.AWAITING_SHUTDOWN)) {
-                throw new IllegalStateException("Not running");
-            }
-
-            try {
-                runnerFuture.get();
-
-                if (!executorService.isShutdown()) {
-                    executorService.shutdownNow();
-                }
-
-            } catch (final ExecutionException e) {
-                LOGGER.error("Orchestrator raised an exception: " + e.getMessage(), e);
-            } finally {
-                STATE.set(State.IDLE);
-            }
-        }
-
-        @Override
-        public void close() {
-            if (!STATE.compareAndSet(State.RUNNING, State.SHUTTING_DOWN)) {
-                throw new IllegalStateException("Not running");
-            }
-
-            try {
-                runnerFuture.cancel(true);
-
-                if (!executorService.isShutdown()) {
-                    executorService.shutdownNow();
-                }
-
-            } finally {
-                STATE.set(State.IDLE);
-            }
         }
     }
 
