@@ -46,11 +46,11 @@ public class Main {
         } catch (final ArgumentException e) {
             System.out.println(e.getMessageAndUsage());
             System.exit(ExitCodes.INVALID_ARGUMENT);
+
+        } catch (final InterruptedException e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+            System.exit(ExitCodes.INTERRUPTED_EXIT_CODE);
         }
-//        } catch (final InterruptedException e) {
-//            System.out.println(e.getMessage());
-//            e.printStackTrace();
-//            System.exit(ExitCodes.INTERRUPTED_EXIT_CODE);
-//        }
     }
 }
