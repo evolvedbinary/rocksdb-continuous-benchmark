@@ -50,6 +50,7 @@
         <module>orchestrator</module>
         <module>runner</module>
         <module>test-util</module>
+        <module>messaging-support</module>
     </modules>
 
     <dependencyManagement>

@@ -22,6 +22,8 @@ public class Orchestrator extends AbstractJMSService {
     private static final AtomicReference<JMSServiceState> STATE = new AtomicReference<>(JMSServiceState.IDLE);
 
     private final Settings settings;
+    private final WebHookQueueMessageListener webHookQueueMessageListener = new WebHookQueueMessageListener();
+    private final BuildResponseQueueMessageListener buildResponseQueueMessageListener = new BuildResponseQueueMessageListener();
 
     // TODO(AR) internal state needs to be persisted somewhere -- load and resume after restart
     private final Map<String, Map<UUID, Build>> builds = new ConcurrentHashMap<>();
@@ -70,10 +72,10 @@ public class Orchestrator extends AbstractJMSService {
     @Override
     protected MessageListener getListener(final String queueName) {
         if (settings.webHookQueueName.equals(queueName)) {
-            return new WebHookQueueMessageListener();
+            return webHookQueueMessageListener;
 
         } else if (settings.buildResponseQueueName.equals(queueName)) {
-            return new BuildResponseQueueMessageListener();
+            return buildResponseQueueMessageListener;
         }
 
         return null;
