@@ -23,9 +23,9 @@ public class Main {
             .defaultValue("BuildResponseQueue")
             .description("The name of the JMS Queue for Build response messages")
             .build();
-    private static final Argument<File> DATA_DIR_NAME_ARG = fileArgument("-d", "--data-dir")
+    private static final Argument<File> DATA_DIR_ARG = fileArgument("-d", "--data-dir")
             .required()
-            .description("The path to the data directory where the runner should keep its data")
+            .description("The path to the data directory where the Runner should keep its data")
             .build();
     private static final Argument<String> BUILD_COMMAND_ARG = stringArgument("--build-command")
             .description("The command to run to build the source code. Default is 'make'")
@@ -45,7 +45,7 @@ public class Main {
                 HELP_ARG,
                 BUILD_REQUEST_QUEUE_NAME_ARG,
                 BUILD_RESPONSE_QUEUE_NAME_ARG,
-                DATA_DIR_NAME_ARG,
+                DATA_DIR_ARG,
                 BUILD_COMMAND_ARG,
                 BENCHMARK_COMMAND_ARG,
                 KEEP_LOGS_ARG,
@@ -56,7 +56,7 @@ public class Main {
 
             final String buildRequestQueueName = parsedArguments.get(BUILD_REQUEST_QUEUE_NAME_ARG);
             final String buildResponseQueueName = parsedArguments.get(BUILD_RESPONSE_QUEUE_NAME_ARG);
-            final Path dataDir = parsedArguments.get(DATA_DIR_NAME_ARG).toPath();
+            final Path dataDir = parsedArguments.get(DATA_DIR_ARG).toPath();
             try {
                 // make sure the data dir exists
                 Files.createDirectories(dataDir);
