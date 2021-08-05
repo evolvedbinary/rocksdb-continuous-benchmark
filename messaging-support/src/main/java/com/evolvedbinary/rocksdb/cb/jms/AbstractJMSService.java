@@ -97,8 +97,10 @@ public abstract class AbstractJMSService implements JMSService {
                 closeAndLogIfException(connection::stop, this::getLogger);
             }
 
-            for (final MessageConsumer queueConsumer : queueConsumers.descendingMap().values()) {
-                closeAndLogIfException(queueConsumer, this::getLogger);
+            if (queueConsumers != null) {
+                for (final MessageConsumer queueConsumer : queueConsumers.descendingMap().values()) {
+                    closeAndLogIfException(queueConsumer, this::getLogger);
+                }
             }
 
             if (this.producer != null) {
