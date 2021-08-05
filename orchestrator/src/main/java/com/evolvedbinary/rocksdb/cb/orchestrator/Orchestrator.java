@@ -24,6 +24,7 @@ public class Orchestrator extends AbstractJMSService {
     private final Settings settings;
     private final WebHookQueueMessageListener webHookQueueMessageListener = new WebHookQueueMessageListener();
     private final BuildResponseQueueMessageListener buildResponseQueueMessageListener = new BuildResponseQueueMessageListener();
+    private final PublishResponseQueueMessageListener publishResponseQueueMessageListener = new PublishResponseQueueMessageListener();
 
     // TODO(AR) internal state needs to be persisted somewhere -- load and resume after restart
     private final Map<String, Map<UUID, Build>> builds = new ConcurrentHashMap<>();
@@ -64,7 +65,8 @@ public class Orchestrator extends AbstractJMSService {
                 settings.webHookQueueName,
                 settings.buildRequestQueueName,
                 settings.buildResponseQueueName,
-                settings.outputQueueName
+                settings.publishRequestQueueName,
+                settings.publishResponseQueueName
         );
     }
 
@@ -76,6 +78,9 @@ public class Orchestrator extends AbstractJMSService {
 
         } else if (settings.buildResponseQueueName.equals(queueName)) {
             return buildResponseQueueMessageListener;
+
+        } else if (settings.publishResponseQueueName.equals(queueName)) {
+            return publishResponseQueueMessageListener;
         }
 
         return null;
@@ -211,10 +216,10 @@ public class Orchestrator extends AbstractJMSService {
         updateBuildState(builds, buildRequest, BuildState.REQUESTING, BuildState.REQUESTED);
     }
 
-    private void sendOutput(final BuildResponse buildResponse) throws IOException, JMSException {
+    private void sendPublishRequest(final PublishRequest publishRequest) throws IOException, JMSException {
         // send the message
-        final Queue outputQueue = getQueue(settings.outputQueueName);
-        sendMessage(buildResponse, outputQueue);
+        final Queue outputQueue = getQueue(settings.publishRequestQueueName);
+        sendMessage(publishRequest, outputQueue);
     }
 
     private class BuildResponseQueueMessageListener implements MessageListener {
@@ -261,7 +266,7 @@ public class Orchestrator extends AbstractJMSService {
             } else if (BuildState.isStateFinalSuccessState(buildResponse.getBuildState())
                     || BuildState.isStateFailureState(buildResponse.getBuildState())) {
 
-                // record the final state, i.e. DONE!
+                // record the final state, i.e. DONE so remove it!
                 if (!removeBuildState(builds, buildResponse.getBuildRequest(), buildResponse.getBuildState().getPrevBuildState())) {
                     LOGGER.error("Unable to remove Build State {} for ref: {} id: {}", buildResponse.getBuildState().getPrevBuildState(), buildResponse.getBuildRequest().getRef(), buildResponse.getBuildRequest().getId());
                 }
@@ -275,10 +280,11 @@ public class Orchestrator extends AbstractJMSService {
                 // TODO(AR) improve data sent to output queue
 
                 // dispatch the results to the output queue
+                final PublishRequest publishRequest = new PublishRequest(buildResponse);
                 try {
-                    sendOutput(buildResponse);
+                    sendPublishRequest(publishRequest);
                 } catch (final IOException | JMSException e) {
-                    LOGGER.error("Unable to send BuildResponse to Queue: {}. Error: ", settings.outputQueueName, e.getMessage(), e);
+                    LOGGER.error("Unable to send PublishRequest to Queue: {}. Error: ", settings.publishRequestQueueName, e.getMessage(), e);
                 }
             }
 
@@ -399,19 +405,67 @@ public class Orchestrator extends AbstractJMSService {
         return removed;
     }
 
+    private class PublishResponseQueueMessageListener implements MessageListener {
+        @Override
+        public void onMessage(final Message message) {
+            if (!(message instanceof TextMessage)) {
+                // acknowledge invalid message so that it is removed from the queue
+                if (Orchestrator.this.acknowledgeMessage(message)) {
+                    LOGGER.error("Discarded message with unexpected type {} from Queue: {}.", message.getClass().getName(), settings.publishResponseQueueName);
+                }
+
+                // can't process non-text message, so DONE
+                return;
+            }
+
+            final TextMessage textMessage = (TextMessage) message;
+            final String content;
+            try {
+                content = textMessage.getText();
+            } catch (final JMSException e) {
+                LOGGER.error("Could not get content of TextMessage from Queue: {}. Error: {}", settings.publishResponseQueueName, e.getMessage(), e);
+
+                // can't access message content, so DONE
+                return;
+            }
+
+            // attempt to parse as BuildResponse
+            final PublishResponse publishResponse;
+            try {
+                publishResponse = new PublishResponse().deserialize(content);
+            } catch (final IOException e) {
+                // unable to deserialize, acknowledge invalid message so that it is removed from the queue
+                if (acknowledgeMessage(message)) {
+                    LOGGER.error("Discarded message with unexpected format from Queue: {}. Error: {}. Content: '{}'", settings.publishResponseQueueName, e.getMessage(), content);
+                }
+                return;
+            }
+
+            acknowledgeMessage(message);
+
+            if (publishResponse.getPublishState() == PublishState.COMPLETE) {
+                LOGGER.info("Published stats for build request: {}", publishResponse.getBuildRequest().getId());
+            } else {
+                LOGGER.info("Failed to Publish stats for build request: {}", publishResponse.getBuildRequest().getId());
+            }
+        }
+    }
+
     static class Settings {
         final String webHookQueueName;
         final String buildRequestQueueName;
         final String buildResponseQueueName;
-        final String outputQueueName;
+        final String publishRequestQueueName;
+        final String publishResponseQueueName;
         final List<Pattern> refPatterns;
         final boolean allBuilds;
 
-        public Settings(final String webHookQueueName, final String buildRequestQueueName, final String buildResponseQueueName, final String outputQueueName, final List<Pattern> refPatterns, final boolean allBuilds) {
+        public Settings(final String webHookQueueName, final String buildRequestQueueName, final String buildResponseQueueName, final String publishRequestQueueName, final String publishResponseQueueName, final List<Pattern> refPatterns, final boolean allBuilds) {
             this.webHookQueueName = webHookQueueName;
             this.buildRequestQueueName = buildRequestQueueName;
             this.buildResponseQueueName = buildResponseQueueName;
-            this.outputQueueName = outputQueueName;
+            this.publishRequestQueueName = publishRequestQueueName;
+            this.publishResponseQueueName = publishResponseQueueName;
             this.refPatterns = refPatterns;
             this.allBuilds = allBuilds;
         }

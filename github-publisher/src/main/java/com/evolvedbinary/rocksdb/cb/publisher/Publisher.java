@@ -1,7 +1,6 @@
 package com.evolvedbinary.rocksdb.cb.publisher;
 
-import com.evolvedbinary.rocksdb.cb.dataobject.BuildResponse;
-import com.evolvedbinary.rocksdb.cb.dataobject.BuildStats;
+import com.evolvedbinary.rocksdb.cb.dataobject.*;
 import com.evolvedbinary.rocksdb.cb.jms.AbstractJMSService;
 import com.evolvedbinary.rocksdb.cb.jms.JMSServiceState;
 import com.evolvedbinary.rocksdb.cb.scm.GitHelper;
@@ -11,10 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageListener;
-import javax.jms.TextMessage;
+import javax.jms.*;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,7 +33,7 @@ public class Publisher extends AbstractJMSService {
     private static final String REPO_DIR_NAME = "repo";
 
     private final Settings settings;
-    private final OutputQueueMessageListener outputQueueMessageListener = new OutputQueueMessageListener();
+    private final PublishRequestQueueMessageListener publishRequestQueueMessageListener = new PublishRequestQueueMessageListener();
 
     public Publisher(final Settings settings) {
         this.settings = settings;
@@ -60,28 +56,29 @@ public class Publisher extends AbstractJMSService {
 
     @Override
     protected List<String> getQueueNames() {
-        return List.of(
-                settings.outputQueueName
+        return Arrays.asList(
+                settings.publishRequestQueueName,
+                settings.publishResponseQueueName
         );
     }
 
     @Nullable
     @Override
     protected MessageListener getListener(final String queueName) {
-        if (settings.outputQueueName.equals(queueName)) {
-            return outputQueueMessageListener;
+        if (settings.publishRequestQueueName.equals(queueName)) {
+            return publishRequestQueueMessageListener;
         }
 
         return null;
     }
 
-    private class OutputQueueMessageListener implements MessageListener {
+    private class PublishRequestQueueMessageListener implements MessageListener {
         @Override
         public void onMessage(final Message message) {
             if (!(message instanceof TextMessage)) {
                 // acknowledge invalid message so that it is removed from the queue
                 if (acknowledgeMessage(message)) {
-                    LOGGER.error("Discarded message with unexpected type {} from Queue: {}.", message.getClass().getName(), settings.outputQueueName);
+                    LOGGER.error("Discarded message with unexpected type {} from Queue: {}.", message.getClass().getName(), settings.publishRequestQueueName);
                 }
 
                 // can't process non-text message, so DONE
@@ -93,22 +90,20 @@ public class Publisher extends AbstractJMSService {
             try {
                 content = textMessage.getText();
             } catch (final JMSException e) {
-                LOGGER.error("Could not get content of TextMessage from Queue: {}. Error: {}", settings.outputQueueName, e.getMessage(), e);
+                LOGGER.error("Could not get content of TextMessage from Queue: {}. Error: {}", settings.publishRequestQueueName, e.getMessage(), e);
 
                 // can't access message content, so DONE
                 return;
             }
 
-            // TODO(AR) do we want this as a BuildResponse, or would something more "publishing" specific be better?
-
-            // attempt to parse as BuildResponse
-            final BuildResponse buildResponse;
+            // attempt to parse as PublishResponse
+            final PublishRequest publishRequest;
             try {
-                buildResponse = new BuildResponse().deserialize(content);
+                publishRequest = new PublishRequest().deserialize(content);
             } catch (final IOException e) {
                 // unable to deserialize, acknowledge invalid message so that it is removed from the queue
                 if (acknowledgeMessage(message)) {
-                    LOGGER.error("Discarded message with unexpected format from Queue: {}. Error: {}. Content: '{}'", settings.outputQueueName, e.getMessage(), content);
+                    LOGGER.error("Discarded message with unexpected format from Queue: {}. Error: {}. Content: '{}'", settings.publishRequestQueueName, e.getMessage(), content);
                 }
                 return;
             }
@@ -138,6 +133,7 @@ public class Publisher extends AbstractJMSService {
                     updateWebAssets(gitHelper, projectRepoDir);
                 } catch (final IOException e) {
                     LOGGER.error("Unable to Update Web Assets. Error: {}", e.getMessage(), e);
+                    sendFailureToPublish(publishRequest.getBuildResponse().getBuildRequest());
                     return;  // nothing more can be done!
                 }
 
@@ -153,6 +149,7 @@ public class Publisher extends AbstractJMSService {
                         Files.copy(is, csvFile);
                     } catch (final IOException e) {
                         LOGGER.error("Unable to store initial empty CSV files. Error: {}", e.getMessage(), e);
+                        sendFailureToPublish(publishRequest.getBuildResponse().getBuildRequest());
                         return;  // nothing more can be done!
                     }
 
@@ -164,33 +161,36 @@ public class Publisher extends AbstractJMSService {
                 try (final BufferedWriter bufferedWriter = Files.newBufferedWriter(csvFile, UTF_8, StandardOpenOption.APPEND);
                      final PrintWriter printWriter = new PrintWriter(bufferedWriter)) {
 
-                    final String commit = buildResponse.getBuildRequest().getCommit();
-                    final String date = buildResponse.getBuildRequest().getTimeStamp().format(DateTimeFormatter.ISO_DATE_TIME); // TODO(AR) is this correct
-                    final BuildStats buildStats = buildResponse.getBuildStats();
+                    final String commit = publishRequest.getBuildResponse().getBuildRequest().getCommit();
+                    final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+                    final String date = publishRequest.getBuildResponse().getBuildRequest().getTimeStamp().format(dateTimeFormatter);
+                    final BuildStats buildStats = publishRequest.getBuildResponse().getBuildStats();
                     if (buildStats == null) {
-                        LOGGER.error("BuildStats are missing from message with id: {} from Queue: {}", buildResponse.getId(), settings.outputQueueName);
+                        LOGGER.error("BuildStats are missing from message with id: {} from Queue: {}", publishRequest.getId(), settings.publishRequestQueueName);
                         if (acknowledgeMessage(message)) {
-                            LOGGER.error("Discarded message with missing BuildStats with id: {} from Queue: {}.", buildResponse.getId(), settings.outputQueueName);
+                            LOGGER.error("Discarded message with missing BuildStats with id: {} from Queue: {}.", publishRequest.getId(), settings.publishRequestQueueName);
                         }
+                        sendFailureToPublish(publishRequest.getBuildResponse().getBuildRequest());
                         return;  // nothing more can be done!
                     }
 
                     // write source update time
                     String task = "Update Source";
-                    long time = buildResponse.getBuildStats().getUpdateSourceTime();
+                    long time = buildStats.getUpdateSourceTime();
                     writeCsvLine(printWriter, task, commit, date, time);
 
                     // write compilation time
                     task = "Compile Source";
-                    time = buildResponse.getBuildStats().getCompilationTime();
+                    time = buildStats.getCompilationTime();
                     writeCsvLine(printWriter, task, commit, date, time);
 
                     // write benchmark time
                     task = "Benchmark 1"; // TODO(AR) add different benchmarks
-                    time = buildResponse.getBuildStats().getBenchmarkTime();
+                    time = buildStats.getBenchmarkTime();
                     writeCsvLine(printWriter, task, commit, date, time);
                 } catch (final IOException e) {
                     LOGGER.error("Unable to append data to CSV file. Error: {}", e.getMessage(), e);
+                    sendFailureToPublish(publishRequest.getBuildResponse().getBuildRequest());
                     return;  // nothing more can be done!
                 }
 
@@ -199,10 +199,15 @@ public class Publisher extends AbstractJMSService {
 
                 // 4) commit and push the CSV file
                 gitHelper = gitHelper.commit("Added Benchmark Stats");
-                gitHelper = gitHelper.push(settings.repoUsername, settings.repoPassword);
+                if (!settings.skipPush) {
+                    gitHelper = gitHelper.push(settings.repoUsername, settings.repoPassword);
+                } else {
+                    LOGGER.info("Skipping push (--skip-push was set) to Git repo: {}", settings.repo);
+                }
 
             } catch (final GitHelperException e) {
                 LOGGER.error("Unable to open/update Git repo: {}. Error: {}", settings.repo, e.getMessage(), e);
+                sendFailureToPublish(publishRequest.getBuildResponse().getBuildRequest());
                 return;  // nothing more can be done!
 
             } finally {
@@ -213,12 +218,36 @@ public class Publisher extends AbstractJMSService {
 
             // Yay! We are done :-) So we can acknowledge the message...
             if (!acknowledgeMessage(message)) {
-                LOGGER.error("Unable to acknowledge message from Queue: {}. Content: '{}'. Skipping...", settings.outputQueueName, content);
+                LOGGER.error("Unable to acknowledge message from Queue: {}. Content: '{}'. Skipping...", settings.publishRequestQueueName, content);
                 return;
             }
 
             // DONE!
+            LOGGER.info("Published updated stats to Git repo: {}", settings.repo);
+            sendCompletedPublish(publishRequest.getBuildResponse().getBuildRequest());
         }
+    }
+
+    private void sendCompletedPublish(final BuildRequest buildRequest) {
+        try {
+            sendPublishResponseOutput(new PublishResponse(PublishState.COMPLETE, buildRequest));
+        } catch (final IOException | JMSException ee) {
+            LOGGER.error("Unable to send publish completed message. Error: {}", ee.getMessage(), ee);
+        }
+    }
+
+    private void sendFailureToPublish(final BuildRequest buildRequest) {
+        try {
+            sendPublishResponseOutput(new PublishResponse(PublishState.FAILED, buildRequest));
+        } catch (final IOException | JMSException ee) {
+            LOGGER.error("Unable to send publish failed message. Error: {}", ee.getMessage(), ee);
+        }
+    }
+
+    private void sendPublishResponseOutput(final PublishResponse publishResponse) throws IOException, JMSException {
+        // send the message
+        final Queue publishResponseQueue = getQueue(settings.publishResponseQueueName);
+        sendMessage(publishResponse, publishResponseQueue);
     }
 
     private void writeCsvLine(final PrintWriter printWriter, final String task, final String commit, final String date, final long time) {
@@ -305,21 +334,25 @@ public class Publisher extends AbstractJMSService {
     }
 
     static class Settings {
-        final String outputQueueName;
+        final String publishRequestQueueName;
+        final String publishResponseQueueName;
         final Path dataDir;
         final String repo;
         final String repoBranch;
         @Nullable final String repoUsername;
         @Nullable final String repoPassword;
+        final boolean skipPush;
 
-        public Settings(final String outputQueueName, final Path dataDir, final String repo, final String repoBranch,
-                        @Nullable final String repoUsername, @Nullable final String repoPassword) {
-            this.outputQueueName = outputQueueName;
+        public Settings(final String publishRequestQueueName, final String publishResponseQueueName, final Path dataDir, final String repo, final String repoBranch,
+                        @Nullable final String repoUsername, @Nullable final String repoPassword, final boolean skipPush) {
+            this.publishRequestQueueName = publishRequestQueueName;
+            this.publishResponseQueueName = publishResponseQueueName;
             this.dataDir = dataDir;
             this.repo = repo;
             this.repoBranch = repoBranch;
             this.repoUsername = repoUsername;
             this.repoPassword = repoPassword;
+            this.skipPush = skipPush;
         }
     }
 }

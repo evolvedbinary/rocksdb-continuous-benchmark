@@ -1,9 +1,6 @@
 package com.evolvedbinary.rocksdb.cb.orchestrator;
 
-import com.evolvedbinary.rocksdb.cb.dataobject.BuildRequest;
-import com.evolvedbinary.rocksdb.cb.dataobject.BuildResponse;
-import com.evolvedbinary.rocksdb.cb.dataobject.BuildState;
-import com.evolvedbinary.rocksdb.cb.dataobject.WebHookPayloadSummary;
+import com.evolvedbinary.rocksdb.cb.dataobject.*;
 import com.evolvedbinary.rocksdb.cb.jms.JMSServiceInstance;
 import com.evolvedbinary.rocksdb.cb.junit.JUnit5ExternalResourceAdapter;
 import org.apache.activemq.artemis.api.core.TransportConfiguration;
@@ -31,7 +28,8 @@ public class OrchestratorIT {
     private static final String WEB_HOOK_QUEUE_NAME = "TestWebHookQueue";
     private static final String BUILD_REQUEST_QUEUE_NAME = "TestBuildRequestQueue";
     private static final String BUILD_RESPONSE_QUEUE_NAME = "TestBuildResponseQueue";
-    private static final String OUTPUT_QUEUE_NAME = "TestOutputQueue";
+    private static final String PUBLISH_REQUEST_QUEUE_NAME = "TestPublishRequestQueue";
+    private static final String PUBLISH_RESPONSE_QUEUE_NAME = "TestPublishResponseQueue";
 
     private static final int IMMEDIATE_TIMEOUT = -1;
     private static final int MESSAGE_RECEIVE_TIMEOUT = 1000;  // 1 second
@@ -44,10 +42,10 @@ public class OrchestratorIT {
     private Queue webHookQueue;
     private Queue buildRequestQueue;
     private Queue buildResponseQueue;
-    private Queue outputQueue;
+    private Queue publishRequestQueue;
     private MessageProducer producer;
     private MessageConsumer buildRequestQueueConsumer;
-    private MessageConsumer outputQueueConsumer;
+    private MessageConsumer publishRequestQueueConsumer;
 
     @BeforeEach
     public void setup() throws JMSException {
@@ -60,11 +58,11 @@ public class OrchestratorIT {
         this.webHookQueue = session.createQueue(WEB_HOOK_QUEUE_NAME);
         this.buildRequestQueue = session.createQueue(BUILD_REQUEST_QUEUE_NAME);
         this.buildResponseQueue = session.createQueue(BUILD_RESPONSE_QUEUE_NAME);
-        this.outputQueue = session.createQueue(OUTPUT_QUEUE_NAME);
+        this.publishRequestQueue = session.createQueue(PUBLISH_REQUEST_QUEUE_NAME);
 
         this.producer = session.createProducer(null);
         this.buildRequestQueueConsumer = session.createConsumer(buildRequestQueue);
-        this.outputQueueConsumer = session.createConsumer(outputQueue);
+        this.publishRequestQueueConsumer = session.createConsumer(publishRequestQueue);
 
         connection.start();
     }
@@ -75,8 +73,8 @@ public class OrchestratorIT {
             connection.stop();
         }
 
-        if (outputQueueConsumer != null) {
-            outputQueueConsumer.close();
+        if (publishRequestQueueConsumer != null) {
+            publishRequestQueueConsumer.close();
         }
 
         if (buildRequestQueueConsumer != null) {
@@ -97,8 +95,8 @@ public class OrchestratorIT {
     }
 
     @Test
-    public void fromHookToOutputNoRefFiltersAllBuilds() throws IOException, JMSException {
-        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, OUTPUT_QUEUE_NAME, Collections.emptyList(), true);
+    public void fromHookToPublishRequestNoRefFiltersAllBuilds() throws IOException, JMSException {
+        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, Collections.emptyList(), true);
         final Orchestrator orchestrator = new Orchestrator(settings);
 
         final JMSServiceInstance instance = orchestrator.runAsync();
@@ -107,7 +105,7 @@ public class OrchestratorIT {
             // pre-flight - Check queues that we will consume are empty
             Message message = buildRequestQueueConsumer.receive(IMMEDIATE_TIMEOUT);
             assertNull(message);
-            message = outputQueueConsumer.receive(IMMEDIATE_TIMEOUT);
+            message = publishRequestQueueConsumer.receive(IMMEDIATE_TIMEOUT);
             assertNull(message);
 
             // send a WebHookPayloadSummary to the WebHookQueue
@@ -142,7 +140,7 @@ public class OrchestratorIT {
                 producer.send(buildResponseQueue, message);
 
                 // Check output queue is empty, as the orchestrator does not need to response to these it just updates its internal state
-                message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+                message = publishRequestQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
                 assertNull(message);
             }
 
@@ -152,17 +150,17 @@ public class OrchestratorIT {
             producer.send(buildResponseQueue, message);
 
             /*
-                Orchestrator should received and process the BuildResponse(BENCHMARKING_COMPLETE),
+                Orchestrator should receive and process the BuildResponse(BENCHMARKING_COMPLETE),
                 and update its internal state for the build, and then send the output
                 to the OutputQueue
             */
 
-            // expect a BuildResponse on the OutputQueue
-            message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+            // expect a PublishRequest on the PublishRequestQueue
+            message = publishRequestQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
             assertNotNull(message);
             assertTrue(message instanceof TextMessage);
-            final BuildResponse outputBuildResponse = new BuildResponse().deserialize(((TextMessage)message).getText());
-            assertEquals(buildResponseBenchmarkingComplete, outputBuildResponse);
+            final PublishRequest publishRequest = new PublishRequest().deserialize(((TextMessage)message).getText());
+            assertEquals(buildResponseBenchmarkingComplete, publishRequest.getBuildResponse());
 
         } finally {
             instance.close();
@@ -170,8 +168,8 @@ public class OrchestratorIT {
     }
 
     @Test
-    public void fromHookToOutputNoRefFiltersAllBuildsUpdatingSourceFailed() throws IOException, JMSException {
-        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, OUTPUT_QUEUE_NAME, Collections.emptyList(), true);
+    public void fromHookToPublishRequestNoRefFiltersAllBuildsUpdatingSourceFailed() throws IOException, JMSException {
+        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, Collections.emptyList(), true);
         final Orchestrator orchestrator = new Orchestrator(settings);
 
         final JMSServiceInstance instance = orchestrator.runAsync();
@@ -180,7 +178,7 @@ public class OrchestratorIT {
             // pre-flight - Check queues that we will consume are empty
             Message message = buildRequestQueueConsumer.receive(IMMEDIATE_TIMEOUT);
             assertNull(message);
-            message = outputQueueConsumer.receive(IMMEDIATE_TIMEOUT);
+            message = publishRequestQueueConsumer.receive(IMMEDIATE_TIMEOUT);
             assertNull(message);
 
             // send a WebHookPayloadSummary to the WebHookQueue
@@ -210,31 +208,32 @@ public class OrchestratorIT {
             producer.send(buildResponseQueue, message);
 
             /*
-                Orchestrator should received and process the BuildResponse(UPDATING_SOURCE),
+                Orchestrator should receive and process the BuildResponse(UPDATING_SOURCE),
                 and update its internal state for the build.
             */
 
             // Check output queue is empty
-            message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+            message = publishRequestQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
             assertNull(message);
 
             // Send a BuildResponse(UPDATING_SOURCE_FAILED) to the BuildResponseQueue
-            final BuildResponse buildResponseUpdatingSourceFailed = new BuildResponse(BuildState.UPDATING_SOURCE_FAILED, buildRequest);
+            final BuildStats buildStats = new BuildStats();
+            final BuildResponse buildResponseUpdatingSourceFailed = new BuildResponse(BuildState.UPDATING_SOURCE_FAILED, buildRequest, buildStats, null);
             message = session.createTextMessage(buildResponseUpdatingSourceFailed.serialize());
             producer.send(buildResponseQueue, message);
 
             /*
-                Orchestrator should received and process the BuildResponse(UPDATING_SOURCE_FAILED),
+                Orchestrator should receive and process the BuildResponse(UPDATING_SOURCE_FAILED),
                 update its internal state for the build, and then send the output
-                to the OutputQueue
+                to the PublishRequestQueue
             */
 
-            // expect a BuildResponse on the OutputQueue
-            message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+            // expect a PublishRequest on the PublishRequestQueue
+            message = publishRequestQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
             assertNotNull(message);
             assertTrue(message instanceof TextMessage);
-            final BuildResponse outputBuildResponse = new BuildResponse().deserialize(((TextMessage)message).getText());
-            assertEquals(buildResponseUpdatingSourceFailed, outputBuildResponse);
+            final PublishRequest publishRequest = new PublishRequest().deserialize(((TextMessage)message).getText());
+            assertEquals(buildResponseUpdatingSourceFailed, publishRequest.getBuildResponse());
 
         } finally {
             instance.close();
@@ -242,8 +241,8 @@ public class OrchestratorIT {
     }
 
     @Test
-    public void fromHookToOutputNoRefFiltersAllBuildsBuildingFailed() throws IOException, JMSException {
-        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, OUTPUT_QUEUE_NAME, Collections.emptyList(), true);
+    public void fromHookToPublishRequestNoRefFiltersAllBuildsBuildingFailed() throws IOException, JMSException {
+        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, Collections.emptyList(), true);
         final Orchestrator orchestrator = new Orchestrator(settings);
 
         final JMSServiceInstance instance = orchestrator.runAsync();
@@ -252,7 +251,7 @@ public class OrchestratorIT {
             // pre-flight - Check queues that we will consume are empty
             Message message = buildRequestQueueConsumer.receive(IMMEDIATE_TIMEOUT);
             assertNull(message);
-            message = outputQueueConsumer.receive(IMMEDIATE_TIMEOUT);
+            message = publishRequestQueueConsumer.receive(IMMEDIATE_TIMEOUT);
             assertNull(message);
 
             // send a WebHookPayloadSummary to the WebHookQueue
@@ -286,27 +285,28 @@ public class OrchestratorIT {
                 producer.send(buildResponseQueue, message);
 
                 // Check output queue is empty, as the orchestrator does not need to response to these it just updates its internal state
-                message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+                message = publishRequestQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
                 assertNull(message);
             }
 
             // Send a BuildResponse(BUILDING_FAILED) to the BuildResponseQueue
-            final BuildResponse buildResponseBuildingFailed = new BuildResponse(BuildState.BUILDING_FAILED, buildRequest);
+            final BuildStats buildStats = new BuildStats(100, -1, -1);
+            final BuildResponse buildResponseBuildingFailed = new BuildResponse(BuildState.BUILDING_FAILED, buildRequest, buildStats, null);
             message = session.createTextMessage(buildResponseBuildingFailed.serialize());
             producer.send(buildResponseQueue, message);
 
             /*
-                Orchestrator should received and process the BuildResponse(BUILDING_FAILED),
+                Orchestrator should receive and process the BuildResponse(BUILDING_FAILED),
                 update its internal state for the build, and then send the output
-                to the OutputQueue
+                to the PublishRequestQueue
             */
 
-            // expect a BuildResponse on the OutputQueue
-            message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+            // expect a PublishRequest on the PublishRequestQueue
+            message = publishRequestQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
             assertNotNull(message);
             assertTrue(message instanceof TextMessage);
-            final BuildResponse outputBuildResponse = new BuildResponse().deserialize(((TextMessage)message).getText());
-            assertEquals(buildResponseBuildingFailed, outputBuildResponse);
+            final PublishRequest publishRequest = new PublishRequest().deserialize(((TextMessage)message).getText());
+            assertEquals(buildResponseBuildingFailed, publishRequest.getBuildResponse());
 
         } finally {
             instance.close();
@@ -314,8 +314,8 @@ public class OrchestratorIT {
     }
 
     @Test
-    public void fromHookToOutputNoRefFiltersAllBuildsBenchmarkingFailed() throws IOException, JMSException {
-        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, OUTPUT_QUEUE_NAME, Collections.emptyList(), true);
+    public void fromHookToPublishRequestNoRefFiltersAllBuildsBenchmarkingFailed() throws IOException, JMSException {
+        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, Collections.emptyList(), true);
         final Orchestrator orchestrator = new Orchestrator(settings);
 
         final JMSServiceInstance instance = orchestrator.runAsync();
@@ -324,7 +324,7 @@ public class OrchestratorIT {
             // pre-flight - Check queues that we will consume are empty
             Message message = buildRequestQueueConsumer.receive(IMMEDIATE_TIMEOUT);
             assertNull(message);
-            message = outputQueueConsumer.receive(IMMEDIATE_TIMEOUT);
+            message = publishRequestQueueConsumer.receive(IMMEDIATE_TIMEOUT);
             assertNull(message);
 
             // send a WebHookPayloadSummary to the WebHookQueue
@@ -359,27 +359,28 @@ public class OrchestratorIT {
                 producer.send(buildResponseQueue, message);
 
                 // Check output queue is empty, as the orchestrator does not need to response to these it just updates its internal state
-                message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+                message = publishRequestQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
                 assertNull(message);
             }
 
             // Send a BuildResponse(BENCHMARKING_FAILED) to the BuildResponseQueue
-            final BuildResponse buildResponseBenchmarkingFailed = new BuildResponse(BuildState.BENCHMARKING_FAILED, buildRequest);
+            final BuildStats buildStats = new BuildStats(100, 1000, -1);
+            final BuildResponse buildResponseBenchmarkingFailed = new BuildResponse(BuildState.BENCHMARKING_FAILED, buildRequest, buildStats, null);
             message = session.createTextMessage(buildResponseBenchmarkingFailed.serialize());
             producer.send(buildResponseQueue, message);
 
             /*
-                Orchestrator should received and process the BuildResponse(BENCHMARKING_FAILED),
+                Orchestrator should receive and process the BuildResponse(BENCHMARKING_FAILED),
                 update its internal state for the build, and then send the output
-                to the OutputQueue
+                to the PublishRequestQueue
             */
 
-            // expect a BuildResponse on the OutputQueue
-            message = outputQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
+            // expect a PublishRequest on the PublishRequestQueue
+            message = publishRequestQueueConsumer.receive(MESSAGE_RECEIVE_TIMEOUT);
             assertNotNull(message);
             assertTrue(message instanceof TextMessage);
-            final BuildResponse outputBuildResponse = new BuildResponse().deserialize(((TextMessage)message).getText());
-            assertEquals(buildResponseBenchmarkingFailed, outputBuildResponse);
+            final PublishRequest publishRequest = new PublishRequest().deserialize(((TextMessage)message).getText());
+            assertEquals(buildResponseBenchmarkingFailed, publishRequest.getBuildResponse());
 
         } finally {
             instance.close();

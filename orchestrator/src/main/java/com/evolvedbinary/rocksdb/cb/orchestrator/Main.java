@@ -29,9 +29,13 @@ public class Main {
             .defaultValue("BuildResponseQueue")
             .description("The name of the JMS Queue for Build response messages")
             .build();
-    private static final Argument<String> OUTPUT_QUEUE_NAME_ARG = stringArgument("-o", "--output-queue-name")
-            .defaultValue("OutputQueue")
-            .description("The name of the JMS Queue for Build Output messages")
+    private static final Argument<String> PUBLISH_REQUEST_QUEUE_NAME_ARG = stringArgument("-p", "--publish-request-queue-name")
+            .defaultValue("PublishRequestQueue")
+            .description("The name of the JMS Queue for Publish request messages")
+            .build();
+    private static final Argument<String> PUBLISH_RESPONSE_QUEUE_NAME_ARG = stringArgument("-P", "--publish-response-queue-name")
+            .defaultValue("PublishResponseQueue")
+            .description("The name of the JMS Queue for Publish response messages")
             .build();
     private static final Argument<List<String>> REF_PATTERN_ARG = stringArgument("-r", "--ref-pattern")
             .repeated()
@@ -47,7 +51,8 @@ public class Main {
                 WEBHOOK_QUEUE_NAME_ARG,
                 BUILD_REQUEST_QUEUE_NAME_ARG,
                 BUILD_RESPONSE_QUEUE_NAME_ARG,
-                OUTPUT_QUEUE_NAME_ARG,
+                PUBLISH_REQUEST_QUEUE_NAME_ARG,
+                PUBLISH_RESPONSE_QUEUE_NAME_ARG,
                 REF_PATTERN_ARG,
                 ALL_BUILDS_ARG);
 
@@ -57,7 +62,8 @@ public class Main {
             final String webHookQueueName = parsedArguments.get(WEBHOOK_QUEUE_NAME_ARG);
             final String buildRequestQueueName = parsedArguments.get(BUILD_REQUEST_QUEUE_NAME_ARG);
             final String buildResponseQueueName = parsedArguments.get(BUILD_RESPONSE_QUEUE_NAME_ARG);
-            final String outputQueueName = parsedArguments.get(OUTPUT_QUEUE_NAME_ARG);
+            final String publishRequestQueueName = parsedArguments.get(PUBLISH_REQUEST_QUEUE_NAME_ARG);
+            final String publishResponseQueueName = parsedArguments.get(PUBLISH_RESPONSE_QUEUE_NAME_ARG);
 
             final List<String> strRefPatterns = parsedArguments.get(REF_PATTERN_ARG);
             final List<Pattern> refPatterns;
@@ -79,7 +85,7 @@ public class Main {
 
             final boolean allBuilds = parsedArguments.get(ALL_BUILDS_ARG);
 
-            final Orchestrator.Settings orchestratorSettings = new Orchestrator.Settings(webHookQueueName, buildRequestQueueName, buildResponseQueueName, outputQueueName, refPatterns, allBuilds);
+            final Orchestrator.Settings orchestratorSettings = new Orchestrator.Settings(webHookQueueName, buildRequestQueueName, buildResponseQueueName, publishRequestQueueName, publishResponseQueueName, refPatterns, allBuilds);
             final Orchestrator orchestrator = new Orchestrator(orchestratorSettings);
             orchestrator.runSync();
 
