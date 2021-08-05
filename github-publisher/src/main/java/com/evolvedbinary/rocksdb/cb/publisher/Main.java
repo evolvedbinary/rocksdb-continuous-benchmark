@@ -35,7 +35,6 @@ public class Main {
             .build();
     private static final Argument<String> REPO_BRANCH = stringArgument("-b", "--repository-branch")
             .defaultValue("gh-pages")
-            .required()
             .description("The GitHub repository branch to publish the results to, e.g. gh-pages")
             .build();
     private static final Argument<String> REPO_USERNAME = stringArgument("--username")
