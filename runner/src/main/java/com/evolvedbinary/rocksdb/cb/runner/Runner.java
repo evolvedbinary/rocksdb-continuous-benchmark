@@ -52,7 +52,7 @@ class Runner extends AbstractJMSService {
 
     public Runner(final Settings settings) {
         this.settings = settings;
-        this.clientId = "runner" + UUID.randomUUID();
+        this.clientId = "runner-" + UUID.randomUUID();
     }
 
     @Override
