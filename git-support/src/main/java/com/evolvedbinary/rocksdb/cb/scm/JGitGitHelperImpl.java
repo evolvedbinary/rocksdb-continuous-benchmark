@@ -1,9 +1,12 @@
 package com.evolvedbinary.rocksdb.cb.scm;
 
+import org.eclipse.jgit.annotations.Nullable;
 import org.eclipse.jgit.api.*;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.transport.NetRCCredentialsProvider;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -150,6 +153,77 @@ public class JGitGitHelperImpl implements GitHelper {
             checkoutCommand.call();
         } catch (final GitAPIException e) {
             throw new GitHelperException("Unable to checkout: "  + nameOrCommit + ". " + e.getMessage(), e);
+        }
+
+        return this;
+    }
+
+    @Override
+    public GitHelper reset(final boolean hard, @Nullable final String remote, String nameOrCommit) throws GitHelperException {
+        final ResetCommand resetCommand = git.reset();
+        final ResetCommand.ResetType resetType = hard ? ResetCommand.ResetType.HARD : ResetCommand.ResetType.MIXED;
+        resetCommand.setMode(resetType);
+        if (remote != null) {
+            nameOrCommit = remote + '/' + nameOrCommit;
+        }
+        resetCommand.setRef(nameOrCommit);
+
+        try {
+            resetCommand.call();
+        } catch (final GitAPIException e) {
+            throw new GitHelperException("Unable to " + resetType.name() + " reset: "  + nameOrCommit + ". " + e.getMessage(), e);
+        }
+
+        return this;
+    }
+
+    @Override
+    public GitHelper add(final String filePattern) throws GitHelperException {
+        final AddCommand addCommand = git.add();
+        addCommand.addFilepattern(filePattern);
+        addCommand.setUpdate(false);
+
+        try {
+            addCommand.call();
+        } catch (final GitAPIException e) {
+            throw new GitHelperException("Unable to add: "  + filePattern + ". " + e.getMessage(), e);
+        }
+
+        return this;
+    }
+
+    @Override
+    public GitHelper commit(final String message) throws GitHelperException {
+        final CommitCommand commitCommand = git.commit();
+        commitCommand.setAuthor("RocksDB Continuous Benchmark", "rocksdb-cb@rocksdb.org");
+        commitCommand.setMessage(message);
+
+        try {
+            commitCommand.call();
+        } catch (final GitAPIException e) {
+            throw new GitHelperException("Unable to commit with message: '"  + message + "'. " + e.getMessage(), e);
+        }
+
+        return this;
+    }
+
+    @Override
+    public GitHelper push(@Nullable final String username, @Nullable final String password) throws GitHelperException {
+        final PushCommand pushCommand = git.push();
+        pushCommand.setAtomic(true);
+
+        if (username != null) {
+            // username and password auth
+            pushCommand.setCredentialsProvider(new UsernamePasswordCredentialsProvider(username, password));
+        } else {
+            // fallback to .netrc file if no username provided
+            pushCommand.setCredentialsProvider(new NetRCCredentialsProvider());
+        }
+
+        try {
+            pushCommand.call();
+        } catch (final GitAPIException e) {
+            throw new GitHelperException("Unable to push. " + e.getMessage(), e);
         }
 
         return this;

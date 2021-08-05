@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>RocksDB Continuous Benchmarks</title>
+        <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+        <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+        <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+    </head>
+    <body>
+    <div id="view"></div>
+    <script>
+        vegaEmbed(
+            '#view',
+            'http://static.adamretter.org.uk/rocksdb-benchmarks.vg.json'
+        );
+    </script>
+    </body>
+</html>

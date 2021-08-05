@@ -1,0 +1,227 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "description": "An interactive line chart of RocksDB Benchmarks.",
+  "width": 1280,
+  "height": 768,
+  "padding": 10,
+  "autosize": {"type": "fit", "contains": "padding"},
+  "title": "An interactive line chart of RocksDB Benchmarks.",
+  "signals": [
+    {
+      "name": "indexDate",
+      "update": "time('2000-01-01Z')",
+      "on": [
+        {"events": "mousemove", "update": "invert('x', clamp(x(), 0, width))"}
+      ]
+    },
+    {"name": "maxDate", "update": "time('2000-01-05Z')"}
+  ],
+  "data": [
+    {
+      "name": "benchmarks",
+      "values": [
+        {"task": "Update Source", "commit": "abcdef1", "date": "2000-01-01T10:00:00.000Z", "time": 64},
+        {"task": "Compile", "commit": "abcdef1", "date": "2000-01-01T10:00:00.000Z", "time": 1100},
+        {"task": "Benchmark 1", "commit": "abcdef1", "date": "2000-01-01T10:00:00.000Z", "time": 3000},
+        {"task": "Benchmark 2", "commit": "abcdef1", "date": "2000-01-01T10:00:00.000Z", "time": 6000},
+
+        {"task": "Update Source", "commit": "abab123", "date": "2000-01-02T12:07:00.000Z", "time": 68},
+        {"task": "Compile", "commit": "abab123", "date": "2000-01-02T12:07:00.000Z", "time": 1110},
+        {"task": "Benchmark 1", "commit": "abab123", "date": "2000-01-02T12:07:00.000Z", "time": 3500},
+        {"task": "Benchmark 2", "commit": "abab123", "date": "2000-01-02T12:07:00.000Z", "time": 5900},
+
+        {"task": "Update Source", "commit": "1a2b3c4", "date": "2000-01-02T14:19:00.000Z", "time": 67},
+        {"task": "Compile", "commit": "1a2b3c4", "date": "2000-01-02T14:19:00.000Z", "time": 1120},
+        {"task": "Benchmark 1", "commit": "1a2b3c4", "date": "2000-01-02T14:19:00.000Z", "time": 4000},
+        {"task": "Benchmark 2", "commit": "1a2b3c4", "date": "2000-01-02T14:19:00.000Z", "time": 5800},
+
+        {"task": "Update Source", "commit": "12b3c45", "date": "2000-01-02T20:15:00.000Z", "time": 55},
+        {"task": "Compile", "commit": "12b3c45", "date": "2000-01-02T20:15:00.000Z", "time": 1130},
+        {"task": "Benchmark 1", "commit": "12b3c45", "date": "2000-01-02T20:15:00.000Z", "time": 3100},
+        {"task": "Benchmark 2", "commit": "12b3c45", "date": "2000-01-02T20:15:00.000Z", "time": 5800},
+
+        {"task": "Update Source", "commit": "543abcd", "date": "2000-01-03T07:21:00.000Z", "time": 48},
+        {"task": "Compile", "commit": "543abcd", "date": "2000-01-03T07:21:00.000Z", "time": 910},
+        {"task": "Benchmark 1", "commit": "543abcd", "date": "2000-01-03T07:21:00.000Z", "time": 2900},
+        {"task": "Benchmark 2", "commit": "543abcd", "date": "2000-01-03T07:21:00.000Z", "time": 5600}
+      ],
+
+      "format": {
+        "type": "json",
+        "parse": {"time": "number", "date": "date:'%Y-%m-%dT%H:%M:%S.%LZ'"}
+      }
+    },
+    {
+      "name": "index",
+      "source": "benchmarks",
+      "transform": [
+        {
+          "type": "filter",
+          "expr": "day(datum.date) == day(indexDate) && month(datum.date) == month(indexDate) && year(datum.date) == year(indexDate)"
+        }
+      ]
+    },
+    {
+      "name": "indexed_benchmarks",
+      "source": "benchmarks",
+      "transform": [
+        {
+          "type": "lookup",
+          "from": "index",
+          "key": "task",
+          "fields": ["task"],
+          "as": ["index"],
+          "default": {"time": 0}
+        },
+        {
+          "type": "formula",
+          "as": "indexed_time",
+          "expr": "datum.index.time > 0 ? (datum.time - datum.index.time)/datum.index.time : 0"
+        }
+      ]
+    }
+  ],
+  "scales": [
+    {
+      "name": "x",
+      "type": "time",
+      "domain": {"data": "benchmarks", "field": "date"},
+      "range": "width"
+    },
+    {
+      "name": "y",
+      "type": "linear",
+      "domain": {"data": "indexed_benchmarks", "field": "indexed_time"},
+      "nice": true,
+      "zero": true,
+      "range": "height"
+    },
+    {
+      "name": "color",
+      "type": "ordinal",
+      "range": "category",
+      "domain": {"data": "benchmarks", "field": "task"}
+    },
+    {
+      "name": "commit_id",
+      "type": "ordinal",
+      "range": "category",
+      "domain": {"data": "benchmarks", "field": "commit"}
+    }
+  ],
+  "axes": [
+    {"orient": "left", "scale": "y", "grid": true, "format": "%"},
+    {"orient": "top", "scale": "x", "grid": true, "tickCount": "day"}
+  ],
+  "marks": [
+    {
+      "type": "group",
+      "from": {
+        "facet": {
+          "name": "series",
+          "data": "indexed_benchmarks",
+          "groupby": "task"
+        }
+      },
+      "data": [
+        {
+          "name": "label",
+          "source": "series",
+          "transform": [{"type": "filter", "expr": "datum.date"}]
+        }
+      ],
+      "marks": [
+        {
+          "type": "line",
+          "from": {"data": "series"},
+          "encode": {
+            "update": {
+              "x": {"scale": "x", "field": "date"},
+              "y": {"scale": "y", "field": "indexed_time"},
+              "stroke": {"scale": "color", "field": "task"},
+              "strokeWidth": {"value": 2}
+            }
+          }
+        },
+        {
+          "type": "text",
+          "from": {"data": "label"},
+          "encode": {
+            "update": {
+              "x": {"scale": "x", "field": "date", "offset": 2},
+              "y": {"scale": "y", "field": "indexed_time"},
+              "fill": {"scale": "color", "field": "task"}
+            }
+          }
+        },
+        {
+          "type": "text",
+          "from": {"data": "index"},
+          "encode": {
+            "update": {
+              "y2": {"field": "commit"},
+              "text": {"field": "commit", "baseline": "top"},
+              "fill": {"value": "firebrick"},
+              "fontSize": {"value": 14}
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "rule",
+      "encode": {
+        "update": {
+          "x": {"field": {"group": "x"}},
+          "x2": {"field": {"group": "width"}},
+          "y": {
+            "value": 0.5,
+            "offset": {"scale": "y", "value": 0, "round": true}
+          },
+          "stroke": {"value": "black"},
+          "strokeWidth": {"value": 2}
+        }
+      }
+    },
+    {
+      "type": "rule",
+      "encode": {
+        "update": {
+          "x": {"scale": "x", "signal": "indexDate", "offset": 0.5},
+          "y2": {"field": {"group": "height"}},
+          "stroke": {"value": "firebrick"}
+        }
+      }
+    },
+    {
+      "type": "text",
+      "encode": {
+        "update": {
+          "x": {"scale": "x", "signal": "indexDate"},
+          "y2": {"field": {"group": "height"}, "offset": 15},
+          "align": {"value": "center"},
+          "text": {"signal": "timeFormat(indexDate, '%d %b %Y')"},
+          "fill": {"value": "firebrick"}
+        }
+      }
+    }
+  ],
+  "legends": [
+    {
+      "fill": "color",
+      "title": "Task",
+      "encode": {
+        "title": {"update": {"fontSize": {"value": 14}}},
+        "labels": {
+          "interactive": true,
+          "update": {"fontSize": {"value": 12}, "fill": {"value": "black"}},
+          "hover": {"fill": {"value": "firebrick"}}
+        },
+        "symbols": {"update": {"stroke": {"value": "transparent"}}},
+        "legend": {
+          "update": {"stroke": {"value": "#ccc"}, "strokeWidth": {"value": 1.5}}
+        }
+      }
+    }
+  ]
+}
