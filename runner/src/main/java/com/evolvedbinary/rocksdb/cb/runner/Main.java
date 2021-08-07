@@ -37,10 +37,12 @@ public class Main {
             .description("The path to the data directory where the Runner should keep its data")
             .build();
     private static final Argument<String> BUILD_COMMAND_ARG = stringArgument("--build-command")
-            .description("The command to run to build the source code. Default is 'make'")
+            .defaultValue("make")
+            .description("The command to run to build the source code.")
             .build();
     private static final Argument<String> BENCHMARK_COMMAND_ARG = stringArgument("--benchmark-command")
-            .description("The command to run to benchmark the source code. Default is 'tools" + File.separator + "benchmark.sh'")
+            .defaultValue("tolls" + File.separator + "benchmark.sh")
+            .description("The command to run to benchmark the source code.")
             .build();
     private static final Argument<Boolean> KEEP_LOGS_ARG = optionArgument("--keep-logs")
             .description("Keep logs from builds. Without this flag successful build logs are removed, whilst failed builds logs are sent to the orchestrator and then removed.")
