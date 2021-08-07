@@ -1,5 +1,6 @@
 package com.evolvedbinary.rocksdb.cb.jms;
 
+import com.evolvedbinary.rocksdb.cb.common.MapUtil;
 import com.evolvedbinary.rocksdb.cb.dataobject.DataObject;
 import org.apache.activemq.artemis.api.core.TransportConfiguration;
 import org.apache.activemq.artemis.api.jms.ActiveMQJMSClient;
@@ -22,6 +23,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.evolvedbinary.rocksdb.cb.common.CloseUtil.closeAndLogIfException;
+import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Entry;
 
 public abstract class AbstractJMSService implements JMSService {
 
@@ -32,6 +34,8 @@ public abstract class AbstractJMSService implements JMSService {
     private TreeMap<String, MessageConsumer> queueConsumers;
 
     protected abstract Logger getLogger();
+
+    protected abstract Map<String, Object> getTransportConfigurationParameters();
 
     protected abstract AtomicReference<JMSServiceState> getState();
 
@@ -50,7 +54,8 @@ public abstract class AbstractJMSService implements JMSService {
         }
 
         // setup JMS
-        final TransportConfiguration transportConfiguration = new TransportConfiguration(NettyConnectorFactory.class.getName());
+        final Map<String, Object> transportConfigurationParameters = getTransportConfigurationParameters();
+        final TransportConfiguration transportConfiguration = new TransportConfiguration(NettyConnectorFactory.class.getName(), transportConfigurationParameters);
         final ConnectionFactory connectionFactory = ActiveMQJMSClient.createConnectionFactoryWithoutHA(JMSFactoryType.CF, transportConfiguration);
 
         try {

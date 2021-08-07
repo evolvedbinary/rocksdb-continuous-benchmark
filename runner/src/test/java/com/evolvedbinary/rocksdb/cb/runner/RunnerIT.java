@@ -1,5 +1,6 @@
 package com.evolvedbinary.rocksdb.cb.runner;
 
+import com.evolvedbinary.rocksdb.cb.Constants;
 import com.evolvedbinary.rocksdb.cb.dataobject.*;
 import com.evolvedbinary.rocksdb.cb.jms.JMSServiceInstance;
 import com.evolvedbinary.rocksdb.cb.junit.JUnit5ExternalResourceAdapter;
@@ -91,7 +92,7 @@ public class RunnerIT {
     public void fromBuildRequestToBenchmarkingComplete(@TempDir final Path tempDir) throws IOException, JMSException {
         assumeFalse(IS_WINDOWS);
 
-        final Runner.Settings settings = new Runner.Settings(BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, null, null, true, true);
+        final Runner.Settings settings = new Runner.Settings(Constants.DEFAULT_ARTEMIS_HOST, Constants.DEFAULT_ARTEMIS_PORT, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, null, null, true, true);
         final Runner runner = new Runner(settings);
 
         final JMSServiceInstance instance = runner.runAsync();
@@ -167,7 +168,7 @@ public class RunnerIT {
 
     @Test
     public void fromBuildRequestToUpdatingSourceFailed_noSuchRepo(@TempDir final Path tempDir) throws IOException, JMSException {
-        final Runner.Settings settings = new Runner.Settings(BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, null, null, true, true);
+        final Runner.Settings settings = new Runner.Settings(Constants.DEFAULT_ARTEMIS_HOST, Constants.DEFAULT_ARTEMIS_PORT, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, null, null, true, true);
         final Runner runner = new Runner(settings);
 
         final JMSServiceInstance instance = runner.runAsync();
@@ -233,7 +234,7 @@ public class RunnerIT {
 
     @Test
     public void fromBuildRequestToUpdatingSourceFailed_noSuchCommit(@TempDir final Path tempDir) throws IOException, JMSException {
-        final Runner.Settings settings = new Runner.Settings(BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, null, null, true, true);
+        final Runner.Settings settings = new Runner.Settings(Constants.DEFAULT_ARTEMIS_HOST, Constants.DEFAULT_ARTEMIS_PORT, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, null, null, true, true);
         final Runner runner = new Runner(settings);
 
         final JMSServiceInstance instance = runner.runAsync();
@@ -300,7 +301,7 @@ public class RunnerIT {
     @Test
     public void fromBuildRequestToBuildingFailed(@TempDir final Path tempDir) throws IOException, JMSException {
         final String invalidBuildCommand = "no-such-build-command";
-        final Runner.Settings settings = new Runner.Settings(BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, invalidBuildCommand, null, true, true);
+        final Runner.Settings settings = new Runner.Settings(Constants.DEFAULT_ARTEMIS_HOST, Constants.DEFAULT_ARTEMIS_PORT, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, invalidBuildCommand, null, true, true);
         final Runner runner = new Runner(settings);
 
         final JMSServiceInstance instance = runner.runAsync();
@@ -374,7 +375,7 @@ public class RunnerIT {
         assumeFalse(IS_WINDOWS);
 
         final String invalidBenchmarkCommand = "no-such-benchmark-command";
-        final Runner.Settings settings = new Runner.Settings(BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, null, invalidBenchmarkCommand, true, true);
+        final Runner.Settings settings = new Runner.Settings(Constants.DEFAULT_ARTEMIS_HOST, Constants.DEFAULT_ARTEMIS_PORT, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, tempDir, null, invalidBenchmarkCommand, true, true);
         final Runner runner = new Runner(settings);
 
         final JMSServiceInstance instance = runner.runAsync();

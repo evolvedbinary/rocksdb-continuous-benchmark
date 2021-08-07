@@ -1,5 +1,6 @@
 package com.evolvedbinary.rocksdb.cb.publisher;
 
+import com.evolvedbinary.rocksdb.cb.common.MapUtil;
 import com.evolvedbinary.rocksdb.cb.dataobject.*;
 import com.evolvedbinary.rocksdb.cb.jms.AbstractJMSService;
 import com.evolvedbinary.rocksdb.cb.jms.JMSServiceState;
@@ -21,8 +22,10 @@ import java.security.NoSuchAlgorithmException;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Entry;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class Publisher extends AbstractJMSService {
@@ -47,6 +50,14 @@ public class Publisher extends AbstractJMSService {
     @Override
     protected AtomicReference<JMSServiceState> getState() {
         return STATE;
+    }
+
+    @Override
+    protected Map<String, Object> getTransportConfigurationParameters() {
+        return MapUtil.Map(
+                Entry("host", settings.artemisBrokerHost),
+                Entry("port", settings.artemisBrokerPort)
+        );
     }
 
     @Override
@@ -334,6 +345,8 @@ public class Publisher extends AbstractJMSService {
     }
 
     static class Settings {
+        final String artemisBrokerHost;
+        final int artemisBrokerPort;
         final String publishRequestQueueName;
         final String publishResponseQueueName;
         final Path dataDir;
@@ -343,8 +356,10 @@ public class Publisher extends AbstractJMSService {
         @Nullable final String repoPassword;
         final boolean skipPush;
 
-        public Settings(final String publishRequestQueueName, final String publishResponseQueueName, final Path dataDir, final String repo, final String repoBranch,
+        public Settings(final String artemisBrokerHost, final int artemisBrokerPort, final String publishRequestQueueName, final String publishResponseQueueName, final Path dataDir, final String repo, final String repoBranch,
                         @Nullable final String repoUsername, @Nullable final String repoPassword, final boolean skipPush) {
+            this.artemisBrokerHost = artemisBrokerHost;
+            this.artemisBrokerPort = artemisBrokerPort;
             this.publishRequestQueueName = publishRequestQueueName;
             this.publishResponseQueueName = publishResponseQueueName;
             this.dataDir = dataDir;

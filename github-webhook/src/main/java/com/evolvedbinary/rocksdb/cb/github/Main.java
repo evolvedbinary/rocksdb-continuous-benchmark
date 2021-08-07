@@ -1,5 +1,6 @@
 package com.evolvedbinary.rocksdb.cb.github;
 
+import com.evolvedbinary.rocksdb.cb.Constants;
 import com.evolvedbinary.rocksdb.cb.common.ExitCodes;
 import se.softhouse.jargo.Argument;
 import se.softhouse.jargo.ArgumentException;
@@ -31,6 +32,14 @@ public class Main {
             .defaultValue(443)
             .description("HTTPS port to listen on")
             .build();
+    private static final Argument<String> ARTEMIS_BROKER_HOST_ARG = stringArgument("--artemis-broker-host")
+            .defaultValue(Constants.DEFAULT_ARTEMIS_HOST)
+            .description("The hostname or IP address of the Artemis Broker")
+            .build();
+    private static final Argument<Integer> ARTEMIS_BROKER_PORT_ARG = integerArgument("--artemis-broker-port")
+            .defaultValue(Constants.DEFAULT_ARTEMIS_PORT)
+            .description("The port of the Artemis Broker")
+            .build();
     private static final Argument<String> QUEUE_NAME_ARG = stringArgument("-w", "--webhook-queue-name")
             .defaultValue("WebHookQueue")
             .description("The name of the JMS Queue for GitHub WebHook messages")
@@ -43,6 +52,8 @@ public class Main {
                 KEYSTORE_FILE_ARG,
                 KEYSTORE_PASSWORD_ARG,
                 CERTIFICATE_PASSWORD_ARG,
+                ARTEMIS_BROKER_HOST_ARG,
+                ARTEMIS_BROKER_PORT_ARG,
                 QUEUE_NAME_ARG);
 
         try {
@@ -57,8 +68,11 @@ public class Main {
             final Optional<String> certificatePassword = Optional.ofNullable(parsedArguments.get(CERTIFICATE_PASSWORD_ARG)).filter(s -> !s.isEmpty());
             final Integer port = parsedArguments.get(PORT_ARG);
 
+            final String artemisBrokerHost = parsedArguments.get(ARTEMIS_BROKER_HOST_ARG);
+            final int artemisBrokerPort = parsedArguments.get(ARTEMIS_BROKER_PORT_ARG).intValue();
+
             final String queueName = parsedArguments.get(QUEUE_NAME_ARG);
-            final JMSClient.Settings jmsClientSettings = new JMSClient.Settings(queueName);
+            final JMSClient.Settings jmsClientSettings = new JMSClient.Settings(artemisBrokerHost, artemisBrokerPort, queueName);
             try (final JMSClient jmsClient = new JMSClient(jmsClientSettings)) {
 
                 jmsClient.start();

@@ -1,5 +1,6 @@
 package com.evolvedbinary.rocksdb.cb.orchestrator;
 
+import com.evolvedbinary.rocksdb.cb.Constants;
 import com.evolvedbinary.rocksdb.cb.dataobject.*;
 import com.evolvedbinary.rocksdb.cb.jms.JMSServiceInstance;
 import com.evolvedbinary.rocksdb.cb.junit.JUnit5ExternalResourceAdapter;
@@ -96,7 +97,7 @@ public class OrchestratorIT {
 
     @Test
     public void fromHookToPublishRequestNoRefFiltersAllBuilds() throws IOException, JMSException {
-        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, Collections.emptyList(), true);
+        final Orchestrator.Settings settings = new Orchestrator.Settings(Constants.DEFAULT_ARTEMIS_HOST, Constants.DEFAULT_ARTEMIS_PORT, WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, Collections.emptyList(), true);
         final Orchestrator orchestrator = new Orchestrator(settings);
 
         final JMSServiceInstance instance = orchestrator.runAsync();
@@ -169,7 +170,7 @@ public class OrchestratorIT {
 
     @Test
     public void fromHookToPublishRequestNoRefFiltersAllBuildsUpdatingSourceFailed() throws IOException, JMSException {
-        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, Collections.emptyList(), true);
+        final Orchestrator.Settings settings = new Orchestrator.Settings(Constants.DEFAULT_ARTEMIS_HOST, Constants.DEFAULT_ARTEMIS_PORT, WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, Collections.emptyList(), true);
         final Orchestrator orchestrator = new Orchestrator(settings);
 
         final JMSServiceInstance instance = orchestrator.runAsync();
@@ -242,7 +243,7 @@ public class OrchestratorIT {
 
     @Test
     public void fromHookToPublishRequestNoRefFiltersAllBuildsBuildingFailed() throws IOException, JMSException {
-        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, Collections.emptyList(), true);
+        final Orchestrator.Settings settings = new Orchestrator.Settings(Constants.DEFAULT_ARTEMIS_HOST, Constants.DEFAULT_ARTEMIS_PORT, WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, Collections.emptyList(), true);
         final Orchestrator orchestrator = new Orchestrator(settings);
 
         final JMSServiceInstance instance = orchestrator.runAsync();
@@ -315,7 +316,7 @@ public class OrchestratorIT {
 
     @Test
     public void fromHookToPublishRequestNoRefFiltersAllBuildsBenchmarkingFailed() throws IOException, JMSException {
-        final Orchestrator.Settings settings = new Orchestrator.Settings(WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, Collections.emptyList(), true);
+        final Orchestrator.Settings settings = new Orchestrator.Settings(Constants.DEFAULT_ARTEMIS_HOST, Constants.DEFAULT_ARTEMIS_PORT, WEB_HOOK_QUEUE_NAME, BUILD_REQUEST_QUEUE_NAME, BUILD_RESPONSE_QUEUE_NAME, PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, Collections.emptyList(), true);
         final Orchestrator orchestrator = new Orchestrator(settings);
 
         final JMSServiceInstance instance = orchestrator.runAsync();

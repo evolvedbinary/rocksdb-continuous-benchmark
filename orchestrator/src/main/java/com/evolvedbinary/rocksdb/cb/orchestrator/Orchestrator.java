@@ -1,5 +1,6 @@
 package com.evolvedbinary.rocksdb.cb.orchestrator;
 
+import com.evolvedbinary.rocksdb.cb.common.MapUtil;
 import com.evolvedbinary.rocksdb.cb.dataobject.*;
 import com.evolvedbinary.rocksdb.cb.jms.AbstractJMSService;
 import com.evolvedbinary.rocksdb.cb.jms.JMSServiceState;
@@ -15,6 +16,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Entry;
 
 public class Orchestrator extends AbstractJMSService {
 
@@ -52,6 +55,14 @@ public class Orchestrator extends AbstractJMSService {
     @Override
     protected AtomicReference<JMSServiceState> getState() {
         return STATE;
+    }
+
+    @Override
+    protected Map<String, Object> getTransportConfigurationParameters() {
+        return MapUtil.Map(
+                Entry("host", settings.artemisBrokerHost),
+                Entry("port", settings.artemisBrokerPort)
+        );
     }
 
     @Override
@@ -452,6 +463,8 @@ public class Orchestrator extends AbstractJMSService {
     }
 
     static class Settings {
+        final String artemisBrokerHost;
+        final int artemisBrokerPort;
         final String webHookQueueName;
         final String buildRequestQueueName;
         final String buildResponseQueueName;
@@ -460,7 +473,9 @@ public class Orchestrator extends AbstractJMSService {
         final List<Pattern> refPatterns;
         final boolean allBuilds;
 
-        public Settings(final String webHookQueueName, final String buildRequestQueueName, final String buildResponseQueueName, final String publishRequestQueueName, final String publishResponseQueueName, final List<Pattern> refPatterns, final boolean allBuilds) {
+        public Settings(final String artemisBrokerHost, final int artemisBrokerPort, final String webHookQueueName, final String buildRequestQueueName, final String buildResponseQueueName, final String publishRequestQueueName, final String publishResponseQueueName, final List<Pattern> refPatterns, final boolean allBuilds) {
+            this.artemisBrokerHost = artemisBrokerHost;
+            this.artemisBrokerPort = artemisBrokerPort;
             this.webHookQueueName = webHookQueueName;
             this.buildRequestQueueName = buildRequestQueueName;
             this.buildResponseQueueName = buildResponseQueueName;

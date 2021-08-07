@@ -10,8 +10,11 @@ import org.slf4j.LoggerFactory;
 
 import javax.jms.*;
 import java.io.IOException;
+import java.util.Map;
 
 import static com.evolvedbinary.rocksdb.cb.common.CloseUtil.closeAndLogIfException;
+import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Entry;
+import static com.evolvedbinary.rocksdb.cb.common.MapUtil.Map;
 
 public class JMSClient implements AutoCloseable {
 
@@ -30,7 +33,11 @@ public class JMSClient implements AutoCloseable {
 
     public void start() throws IOException {
         try {
-            final TransportConfiguration transportConfiguration = new TransportConfiguration(NettyConnectorFactory.class.getName());
+            final Map<String, Object> transportParams = Map(
+                    Entry("host", settings.artemisBrokerHost),
+                    Entry("port", settings.artemisBrokerPort)
+            );
+            final TransportConfiguration transportConfiguration = new TransportConfiguration(NettyConnectorFactory.class.getName(), transportParams);
             final ConnectionFactory connectionFactory = ActiveMQJMSClient.createConnectionFactoryWithoutHA(JMSFactoryType.CF, transportConfiguration);
 
             this.connection = connectionFactory.createConnection();
@@ -82,9 +89,13 @@ public class JMSClient implements AutoCloseable {
     }
 
     static class Settings {
+        final String artemisBrokerHost;
+        final int artemisBrokerPort;
         final String webHookQueueName;
 
-        Settings(final String webHookQueueName) {
+        Settings(final String artemisBrokerHost, final int artemisBrokerPort, final String webHookQueueName) {
+            this.artemisBrokerHost = artemisBrokerHost;
+            this.artemisBrokerPort = artemisBrokerPort;
             this.webHookQueueName = webHookQueueName;
         }
     }

@@ -1,5 +1,6 @@
 package com.evolvedbinary.rocksdb.cb.runner;
 
+import com.evolvedbinary.rocksdb.cb.Constants;
 import com.evolvedbinary.rocksdb.cb.common.ExitCodes;
 import se.softhouse.jargo.Argument;
 import se.softhouse.jargo.ArgumentException;
@@ -15,6 +16,14 @@ import static se.softhouse.jargo.Arguments.*;
 
 public class Main {
     private static final Argument<?> HELP_ARG = helpArgument("-h", "--help");
+    private static final Argument<String> ARTEMIS_BROKER_HOST_ARG = stringArgument("--artemis-broker-host")
+            .defaultValue(Constants.DEFAULT_ARTEMIS_HOST)
+            .description("The hostname or IP address of the Artemis Broker")
+            .build();
+    private static final Argument<Integer> ARTEMIS_BROKER_PORT_ARG = integerArgument("--artemis-broker-port")
+            .defaultValue(Constants.DEFAULT_ARTEMIS_PORT)
+            .description("The port of the Artemis Broker")
+            .build();
     private static final Argument<String> BUILD_REQUEST_QUEUE_NAME_ARG = stringArgument("-b", "--build-request-queue-name")
             .defaultValue("BuildRequestQueue")
             .description("The name of the JMS Queue for Build request messages")
@@ -43,6 +52,8 @@ public class Main {
     public static void main(final String args[]) {
         final CommandLineParser parser = CommandLineParser.withArguments(
                 HELP_ARG,
+                ARTEMIS_BROKER_HOST_ARG,
+                ARTEMIS_BROKER_PORT_ARG,
                 BUILD_REQUEST_QUEUE_NAME_ARG,
                 BUILD_RESPONSE_QUEUE_NAME_ARG,
                 DATA_DIR_ARG,
@@ -54,6 +65,8 @@ public class Main {
         try {
             final ParsedArguments parsedArguments = parser.parse(args);
 
+            final String artemisBrokerHost = parsedArguments.get(ARTEMIS_BROKER_HOST_ARG);
+            final int artemisBrokerPort = parsedArguments.get(ARTEMIS_BROKER_PORT_ARG).intValue();
             final String buildRequestQueueName = parsedArguments.get(BUILD_REQUEST_QUEUE_NAME_ARG);
             final String buildResponseQueueName = parsedArguments.get(BUILD_RESPONSE_QUEUE_NAME_ARG);
             final Path dataDir = parsedArguments.get(DATA_DIR_ARG).toPath();
@@ -69,7 +82,7 @@ public class Main {
             final boolean keepLogs = parsedArguments.get(KEEP_LOGS_ARG);
             final boolean keepData = parsedArguments.get(KEEP_DATA_ARG);
 
-            final Runner.Settings runnerSettings = new Runner.Settings(buildRequestQueueName, buildResponseQueueName, dataDir, buildCommand, benchmarkCommand, keepLogs, keepData);
+            final Runner.Settings runnerSettings = new Runner.Settings(artemisBrokerHost, artemisBrokerPort, buildRequestQueueName, buildResponseQueueName, dataDir, buildCommand, benchmarkCommand, keepLogs, keepData);
             final Runner runner = new Runner(runnerSettings);
             runner.runSync();
 

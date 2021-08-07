@@ -1,5 +1,6 @@
 package com.evolvedbinary.rocksdb.cb.github;
 
+import com.evolvedbinary.rocksdb.cb.Constants;
 import com.evolvedbinary.rocksdb.cb.dataobject.WebHookPayloadSummary;
 import com.evolvedbinary.rocksdb.cb.junit.JUnit5ExternalResourceAdapter;
 import org.apache.activemq.artemis.api.core.TransportConfiguration;
@@ -75,7 +76,7 @@ public class JMSClientIT {
 
         assertEquals(0, embeddedJmsResource.getMessageCount(WEB_HOOK_QUEUE_NAME));
 
-        final JMSClient.Settings settings = new JMSClient.Settings(WEB_HOOK_QUEUE_NAME);
+        final JMSClient.Settings settings = new JMSClient.Settings(Constants.DEFAULT_ARTEMIS_HOST, Constants.DEFAULT_ARTEMIS_PORT, WEB_HOOK_QUEUE_NAME);
         final JMSClient client = new JMSClient(settings);
         try {
             client.start();

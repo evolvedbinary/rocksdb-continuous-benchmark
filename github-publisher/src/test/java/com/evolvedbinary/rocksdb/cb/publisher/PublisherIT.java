@@ -1,5 +1,6 @@
 package com.evolvedbinary.rocksdb.cb.publisher;
 
+import com.evolvedbinary.rocksdb.cb.Constants;
 import com.evolvedbinary.rocksdb.cb.dataobject.*;
 import com.evolvedbinary.rocksdb.cb.jms.JMSServiceInstance;
 import com.evolvedbinary.rocksdb.cb.junit.JUnit5ExternalResourceAdapter;
@@ -80,7 +81,7 @@ public class PublisherIT {
 
     @Test
     public void fromBuildResponseToPublished(@TempDir final Path tempDir) throws IOException, JMSException {
-        final Publisher.Settings settings = new Publisher.Settings(PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, tempDir, "adamretter/rocksdb-continuous-benchmark", "gh-pages", null, null, true);
+        final Publisher.Settings settings = new Publisher.Settings(Constants.DEFAULT_ARTEMIS_HOST, Constants.DEFAULT_ARTEMIS_PORT, PUBLISH_REQUEST_QUEUE_NAME, PUBLISH_RESPONSE_QUEUE_NAME, tempDir, "adamretter/rocksdb-continuous-benchmark", "gh-pages", null, null, true);
         final Publisher publisher = new Publisher(settings);
 
         final JMSServiceInstance instance = publisher.runAsync();

@@ -1,5 +1,6 @@
 package com.evolvedbinary.rocksdb.cb.runner;
 
+import com.evolvedbinary.rocksdb.cb.common.MapUtil;
 import com.evolvedbinary.rocksdb.cb.common.PathUtil;
 import com.evolvedbinary.rocksdb.cb.dataobject.*;
 import com.evolvedbinary.rocksdb.cb.jms.AbstractJMSService;
@@ -63,6 +64,14 @@ class Runner extends AbstractJMSService {
     @Override
     protected AtomicReference<JMSServiceState> getState() {
         return STATE;
+    }
+
+    @Override
+    protected Map<String, Object> getTransportConfigurationParameters() {
+        return MapUtil.Map(
+                Entry("host", settings.artemisBrokerHost),
+                Entry("port", settings.artemisBrokerPort)
+        );
     }
 
     @Override
@@ -401,6 +410,8 @@ class Runner extends AbstractJMSService {
     }
 
     static class Settings {
+        final String artemisBrokerHost;
+        final int artemisBrokerPort;
         final String buildRequestQueueName;
         final String buildResponseQueueName;
         final Path dataDir;
@@ -409,7 +420,9 @@ class Runner extends AbstractJMSService {
         final boolean keepLogs;
         final boolean keepData;
 
-        public Settings(final String buildRequestQueueName, final String buildResponseQueueName, final Path dataDir, @Nullable final String buildCommand, @Nullable final String benchmarkCommand, final boolean keepLogs, final boolean keepData) {
+        public Settings(final String artemisBrokerHost, final int artemisBrokerPort, final String buildRequestQueueName, final String buildResponseQueueName, final Path dataDir, @Nullable final String buildCommand, @Nullable final String benchmarkCommand, final boolean keepLogs, final boolean keepData) {
+            this.artemisBrokerHost = artemisBrokerHost;
+            this.artemisBrokerPort = artemisBrokerPort;
             this.buildRequestQueueName = buildRequestQueueName;
             this.buildResponseQueueName = buildResponseQueueName;
             this.dataDir = dataDir;
